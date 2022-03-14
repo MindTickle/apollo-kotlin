@@ -1,5 +1,6 @@
 plugins {
   kotlin("multiplatform")
+  id("maven-publish")
 }
 
 configureMppDefaults(withLinux = false)
@@ -62,5 +63,19 @@ val jvmJar by tasks.getting(Jar::class) {
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class.java) {
   kotlinOptions {
     allWarningsAsErrors = true
+  }
+}
+
+publishing {
+  publications {
+    repositories {
+      maven {
+        url = uri("https://maven.pkg.github.com/MindTickle/apollo-kotlin")
+        credentials {
+          username = System.getenv("GITHUB_ACTOR")
+          password = System.getenv("GITHUB_TOKEN")
+        }
+      }
+    }
   }
 }
