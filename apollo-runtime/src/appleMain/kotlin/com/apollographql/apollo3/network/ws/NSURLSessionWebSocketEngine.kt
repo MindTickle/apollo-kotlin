@@ -16,24 +16,46 @@ import okio.toByteString
 import platform.Foundation.NSData
 import platform.Foundation.NSError
 import platform.Foundation.NSMutableURLRequest
-import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSThread
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
-import platform.Foundation.NSURLSession
-import platform.Foundation.NSURLSessionConfiguration
-import platform.Foundation.NSURLSessionWebSocketCloseCode
-import platform.Foundation.NSURLSessionWebSocketDelegateProtocol
-import platform.Foundation.NSURLSessionWebSocketMessage
-import platform.Foundation.NSURLSessionWebSocketMessageTypeData
-import platform.Foundation.NSURLSessionWebSocketMessageTypeString
-import platform.Foundation.NSURLSessionWebSocketTask
 import platform.Foundation.setHTTPMethod
 import platform.Foundation.setValue
-import platform.darwin.NSObject
 import platform.darwin.dispatch_async_f
 import platform.darwin.dispatch_get_main_queue
 import kotlin.native.concurrent.freeze
+
+class NSURLSessionWebSocketCloseCode
+class NSURLSessionWebSocketTask {
+  fun resume() { }
+  fun cancel() { }
+  fun cancelWithCloseCode(closeCode: Int, reason: Throwable?) { }
+  fun sendMessage(message: NSURLSessionWebSocketMessage, completion: (NSError?) -> Unit) { }
+  fun receiveMessageWithCompletionHandler(completion: (NSURLSessionWebSocketMessage?, NSError?) -> Unit) { }
+}
+
+class NSURLSessionWebSocketMessage {
+  val type: NSURLSessionWebSocketMessageType
+  val string: String?
+  val data: NSData?
+
+  constructor(string: String) {
+    type = NSURLSessionWebSocketMessageType.NSURLSessionWebSocketMessageTypeString
+    this.string = string
+    this.data = null
+  }
+
+  constructor(data: NSData) {
+    type = NSURLSessionWebSocketMessageType.NSURLSessionWebSocketMessageTypeData
+    this.string = null
+    this.data = data
+  }
+}
+
+enum class NSURLSessionWebSocketMessageType {
+  NSURLSessionWebSocketMessageTypeData,
+  NSURLSessionWebSocketMessageTypeString
+}
 
 interface WebSocketConnectionListener {
   fun onOpen(webSocket: NSURLSessionWebSocketTask)
@@ -48,12 +70,8 @@ actual class DefaultWebSocketEngine(
 ) : WebSocketEngine {
 
   actual constructor() : this(
-      webSocketFactory = { request, connectionListener ->
-        NSURLSession.sessionWithConfiguration(
-            configuration = NSURLSessionConfiguration.defaultSessionConfiguration,
-            delegate = NSURLSessionWebSocketDelegate(connectionListener),
-            delegateQueue = NSOperationQueue.mainQueue
-        ).webSocketTaskWithRequest(request)
+      webSocketFactory = { _, _ ->
+        NSURLSessionWebSocketTask()
       }
   )
 
@@ -223,11 +241,11 @@ private fun NSURLSessionWebSocketMessage.dispatchAndRequestNext(webSocketConnect
   webSocketConnectionRef.dispose()
 
   val data = when (type) {
-    NSURLSessionWebSocketMessageTypeData -> {
+    NSURLSessionWebSocketMessageType.NSURLSessionWebSocketMessageTypeData -> {
       data?.toByteString()?.utf8()
     }
 
-    NSURLSessionWebSocketMessageTypeString -> {
+    NSURLSessionWebSocketMessageType.NSURLSessionWebSocketMessageTypeString -> {
       string
     }
 
@@ -242,23 +260,4 @@ private fun NSURLSessionWebSocketMessage.dispatchAndRequestNext(webSocketConnect
   }
 
   webSocketConnection.receiveNext()
-}
-
-
-private class NSURLSessionWebSocketDelegate(
-    val webSocketConnectionListener: WebSocketConnectionListener,
-) : NSObject(), NSURLSessionWebSocketDelegateProtocol {
-
-  override fun URLSession(session: NSURLSession, webSocketTask: NSURLSessionWebSocketTask, didOpenWithProtocol: String?) {
-    webSocketConnectionListener.onOpen(webSocketTask)
-  }
-
-  override fun URLSession(
-      session: NSURLSession,
-      webSocketTask: NSURLSessionWebSocketTask,
-      didCloseWithCode: NSURLSessionWebSocketCloseCode,
-      reason: NSData?,
-  ) {
-    webSocketConnectionListener.onClose(webSocket = webSocketTask, code = didCloseWithCode)
-  }
 }
