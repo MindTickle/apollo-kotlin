@@ -3,6 +3,7 @@ plugins {
   id("java-gradle-plugin")
   id("com.gradle.plugin-publish")
   id("com.gradleup.gr8")
+  id("maven-publish")
 }
 
 
@@ -113,6 +114,20 @@ configure<PublishingExtension> {
           url.set(findProperty("POM_SCM_URL") as String?)
           connection.set(findProperty("POM_SCM_CONNECTION") as String?)
           developerConnection.set(findProperty("POM_SCM_DEV_CONNECTION") as String?)
+        }
+      }
+    }
+  }
+}
+
+publishing {
+  publications {
+    repositories {
+      maven {
+        url = uri("https://maven.pkg.github.com/MindTickle/apollo-kotlin")
+        credentials {
+          username = System.getenv("GITHUB_ACTOR")
+          password = System.getenv("GITHUB_TOKEN")
         }
       }
     }
