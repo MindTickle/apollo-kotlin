@@ -1,14 +1,14 @@
 package com.apollographql.apollo3.compiler.codegen.kotlin.file
 
-import com.apollographql.apollo3.compiler.applyIf
 import com.apollographql.apollo3.compiler.codegen.Identifier.knownValues
 import com.apollographql.apollo3.compiler.codegen.Identifier.safeValueOf
 import com.apollographql.apollo3.compiler.codegen.kotlin.CgFile
 import com.apollographql.apollo3.compiler.codegen.kotlin.CgFileBuilder
 import com.apollographql.apollo3.compiler.codegen.kotlin.KotlinContext
 import com.apollographql.apollo3.compiler.codegen.kotlin.KotlinSymbols
-import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.deprecatedAnnotation
+import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddDeprecation
 import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddDescription
+import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddRequiresOptIn
 import com.apollographql.apollo3.compiler.ir.IrEnum
 import com.squareup.kotlinpoet.ClassName
 import com.squareup.kotlinpoet.CodeBlock
@@ -74,9 +74,10 @@ class EnumAsSealedBuilder(
   }
 
   private fun IrEnum.Value.toObjectTypeSpec(superClass: TypeName): TypeSpec {
-    return TypeSpec.objectBuilder(layout.enumAsSealedClassValueName(name))
-        .applyIf(description?.isNotBlank() == true) { addKdoc("%L\n", description!!) }
-        .applyIf(deprecationReason != null) { addAnnotation(deprecatedAnnotation(deprecationReason!!)) }
+    return TypeSpec.objectBuilder(layout.enumAsSealedClassValueName(targetName))
+        .maybeAddDeprecation(deprecationReason)
+        .maybeAddDescription(description)
+        .maybeAddRequiresOptIn(context.resolver, optInFeature)
         .superclass(superClass)
         .addSuperclassConstructorParameter("rawValue·=·%S", name)
         .build()
@@ -151,7 +152,7 @@ class EnumAsSealedBuilder(
   }
 
   private fun IrEnum.Value.valueClassName(): ClassName {
-    return ClassName(packageName, simpleName, layout.enumAsSealedClassValueName(name))
+    return ClassName(packageName, simpleName, layout.enumAsSealedClassValueName(targetName))
   }
 
   private fun unknownValueClassName(): ClassName {

@@ -3,7 +3,7 @@ package com.apollographql.apollo3
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_0_0
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_0_1
-import com.apollographql.apollo3.annotations.ApolloInternal
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_3_1
 import com.apollographql.apollo3.api.Adapter
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.ApolloResponse
@@ -20,12 +20,14 @@ import com.apollographql.apollo3.api.http.HttpHeader
 import com.apollographql.apollo3.api.http.HttpMethod
 import com.apollographql.apollo3.api.internal.Version2CustomTypeAdapterToAdapter
 import com.apollographql.apollo3.exception.ApolloHttpException
+import com.apollographql.apollo3.exception.apolloExceptionHandler
 import com.apollographql.apollo3.interceptor.ApolloInterceptor
 import com.apollographql.apollo3.interceptor.AutoPersistedQueryInterceptor
 import com.apollographql.apollo3.interceptor.DefaultInterceptorChain
 import com.apollographql.apollo3.interceptor.NetworkInterceptor
 import com.apollographql.apollo3.internal.defaultDispatcher
 import com.apollographql.apollo3.mpp.assertMainThreadOnNative
+import com.apollographql.apollo3.mpp.freeze
 import com.apollographql.apollo3.network.NetworkTransport
 import com.apollographql.apollo3.network.http.BatchingHttpInterceptor
 import com.apollographql.apollo3.network.http.HttpEngine
@@ -38,6 +40,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import okio.Closeable
 import kotlin.jvm.JvmOverloads
 import kotlin.jvm.JvmStatic
 
@@ -59,7 +62,7 @@ private constructor(
     override val enableAutoPersistedQueries: Boolean?,
     override val canBeBatched: Boolean?,
     private val builder: Builder,
-) : ExecutionOptions {
+) : ExecutionOptions, Closeable {
   private val concurrencyInfo: ConcurrencyInfo
 
   init {
@@ -67,6 +70,8 @@ private constructor(
     concurrencyInfo = ConcurrencyInfo(
         dispatcher,
         CoroutineScope(dispatcher))
+
+    freeze(apolloExceptionHandler)
   }
 
   /**
@@ -105,10 +110,19 @@ private constructor(
   @ApolloDeprecatedSince(v3_0_0)
   fun <D : Subscription.Data> subscribe(subscription: Subscription<D>): ApolloCall<D> = subscription(subscription)
 
-  fun dispose() {
+  override fun close() {
     concurrencyInfo.coroutineScope.cancel()
     networkTransport.dispose()
     subscriptionNetworkTransport.dispose()
+  }
+
+  @Deprecated(
+    "Use close() instead or call okio.use { }",
+    replaceWith = ReplaceWith("close()"),
+  )
+  @ApolloDeprecatedSince(v3_3_1)
+  fun dispose() {
+    close()
   }
 
   private val networkInterceptor = NetworkInterceptor(
@@ -316,7 +330,9 @@ private constructor(
      *
      * @param webSocketReopenWhen a function taking the error and attempt index (starting from zero) as parameters
      * and returning 'true' to reopen automatically or 'false' to forward the error to all listening [Flow].
+     *
      * It is a suspending function, so it can be used to introduce delay before retry (e.g. backoff strategy).
+     * attempt is reset after a successful connection.
      *
      * See also [subscriptionNetworkTransport] for more customization
      */
@@ -358,7 +374,6 @@ private constructor(
       customScalarAdaptersBuilder.add(customScalarType, customScalarAdapter)
     }
 
-    @OptIn(ApolloInternal::class)
     @Deprecated("Used for backward compatibility with 2.x", ReplaceWith("addCustomScalarAdapter"))
     @ApolloDeprecatedSince(v3_0_0)
     fun <T> addCustomTypeAdapter(

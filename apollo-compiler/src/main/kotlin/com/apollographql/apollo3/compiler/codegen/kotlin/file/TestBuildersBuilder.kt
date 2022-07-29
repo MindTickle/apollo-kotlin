@@ -122,7 +122,7 @@ class TestBuildersBuilder(
 
     val builder = CodeBlock.builder()
 
-    builder.beginControlFlow("return %M(${testResolver})", KotlinMemberNames.withTestResolver)
+    builder.beginControlFlow("return·%M(${testResolver})", KotlinMemberNames.withTestResolver)
 
     builder.add(
         "%L.$fromJson(\n",
@@ -146,6 +146,7 @@ class TestBuildersBuilder(
 
 internal data class TBuilder(
     val kotlinName: String,
+    val modelName: String,
     val id: String,
     val possibleTypes: PossibleTypes,
     val properties: List<TProperty>,
@@ -168,6 +169,7 @@ internal data class TProperty(
 
 internal data class TCtor(
     val kotlinName: String,
+    val responseName: String,
     val id: String,
 )
 
@@ -182,7 +184,13 @@ private fun IrProperty.tProperty(modelGroups: List<IrModelGroup>): TProperty {
   val ctors = if (leafType is IrModelType) {
     val leafPath = (leafType as? IrModelType)?.path
     val modelGroup = modelGroups.single { it.baseModelId == leafPath }
-    modelGroup.models.filter { !it.isInterface }.map { TCtor(it.modelName.decapitalizeFirstLetter(), it.id) }
+    modelGroup.models.filter { !it.isInterface }.map {
+      TCtor(
+          kotlinName = it.modelName.decapitalizeFirstLetter(),
+          responseName = info.responseName,
+          id = it.id
+      )
+    }
   } else {
     emptyList()
   }
@@ -220,6 +228,7 @@ internal fun IrModel.toTBuilder(layout: KotlinCodegenLayout): TBuilder {
   val nestedBuilders = modelGroups.flatMap { it.toTBuilders(layout) }
   return TBuilder(
       kotlinName = layout.testBuilder(modelName),
+      modelName = modelName,
       properties = properties.map { it.tProperty(modelGroups) },
       id = id,
       nestedTBuilders = nestedBuilders,

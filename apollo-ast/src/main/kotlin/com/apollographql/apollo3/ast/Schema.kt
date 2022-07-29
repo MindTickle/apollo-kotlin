@@ -1,21 +1,49 @@
 package com.apollographql.apollo3.ast
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
-import com.apollographql.apollo3.ast.internal.buffer
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
+import com.apollographql.apollo3.annotations.ApolloInternal
+import okio.Buffer
 
 /**
- * A wrapper around a schema GQLDocument that:
- * - always contain builtin types contrary to introspection that will not contain directives and SDL that will not contain
- * any builtin definitions
- * - always has a schema definition
- * - has type extensions merged
+ * A wrapper around a schema [GQLDocument] that ensures the [GQLDocument] is valid and caches
+ * some extra information. In particular, [Schema]:
+ * - always contain builtin definitions (SDL can omit them)
+ * - always has a schema definition for easier lookup of root operation types
+ * - has all type system extensions merged
  * - has some helper functions to retrieve a type by name and/or possible types
+ * - caches [keyFields] for easier lookup during codegen
+ * - remembers [foreignNames] to keep track of renamed definitions
+ * - remembers [directivesToStrip] to keep track of client-only directives
  *
  * @param definitions a list of validated and merged definitions
+ * @param keyFields a Map containing the key fields for each type
+ * @param foreignNames a Map from a type system name -> its original name in the foreign schema.
+ * To distinguish between directives and types, directive names must be prefixed by '@'
+ * Example: "@kotlin_labs_nonnull" -> "@nonnull"
+ * @param directivesToStrip directives to strip because they are coming from a foreign schema
+ * Example: "kotlin_labs_nonnull"
  */
-class Schema(
+class Schema internal constructor(
     private val definitions: List<GQLDefinition>,
+    private val keyFields: Map<String, Set<String>>,
+    val foreignNames: Map<String, String>,
+    private val directivesToStrip: List<String>,
 ) {
+  /**
+   * Creates a new Schema from a list of definition.
+   * This doesn't support foreign schemas.
+   *
+   * See also [validateAsSchema] and [toSchema]
+   */
+  @Deprecated("Use validateAsSchema() to get a Schema")
+  @ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+  constructor(definitions: List<GQLDefinition>) : this(
+      definitions,
+      emptyMap(),
+      emptyMap(),
+      emptyList()
+  )
+
   val typeDefinitions: Map<String, GQLTypeDefinition> = definitions
       .filterIsInstance<GQLTypeDefinition>()
       .associateBy { it.name }
@@ -35,6 +63,14 @@ class Schema(
       definitions = definitions,
       filePath = null
   ).withoutBuiltinDefinitions()
+
+  fun originalDirectiveName(name: String): String {
+    return foreignNames["@$name"]?.substring(1) ?: name
+  }
+
+  fun originalTypeName(name: String): String {
+    return foreignNames[name] ?: name
+  }
 
   private fun rootOperationTypeDefinition(operationType: String): GQLTypeDefinition? {
     return definitions.filterIsInstance<GQLSchemaDefinition>().single()
@@ -87,6 +123,19 @@ class Schema(
   }
 
   /**
+   * Returns the [Schema] as a [Map] that can be easily serialized to Json
+   */
+  @ApolloInternal
+  fun toMap(): Map<String, Any> {
+    return mapOf(
+        "sdl" to GQLDocument(definitions, null).toUtf8(),
+        "keyFields" to keyFields,
+        "foreignNames" to foreignNames,
+        "directivesToStrip" to directivesToStrip
+    )
+  }
+
+  /**
    * List all types (types, interfaces, unions) implemented by a given type (including itself)
    */
   fun implementedTypes(name: String): Set<String> {
@@ -111,78 +160,52 @@ class Schema(
    * Returns whether the `typePolicy` directive is present on at least one object in the schema
    */
   fun hasTypeWithTypePolicy(): Boolean {
-    return typeDefinitions.values.filterIsInstance<GQLObjectTypeDefinition>().any { objectType ->
-      objectType.directives.any { it.name == TYPE_POLICY }
-    }
+    val directives = typeDefinitions.values.filterIsInstance<GQLObjectTypeDefinition>().flatMap { it.directives } +
+        typeDefinitions.values.filterIsInstance<GQLInterfaceTypeDefinition>().flatMap { it.directives } +
+        typeDefinitions.values.filterIsInstance<GQLUnionTypeDefinition>().flatMap { it.directives }
+    return directives.any { it.name == TYPE_POLICY }
   }
 
   /**
-   * Returns the key fields for the given type
-   *
-   * If this type has one or multiple @[TYPE_POLICY] annotation(s), they are used, else it recurses in implemented interfaces until it
-   * finds some.
-   *
-   * Returns the emptySet if this type has no key fields.
+   *  Get the key fields for an object, interface or union type.
    */
+  @ApolloInternal
   fun keyFields(name: String): Set<String> {
-    val typeDefinition = typeDefinition(name)
-    return when (typeDefinition) {
-      is GQLObjectTypeDefinition -> {
-        val kf = typeDefinition.directives.toKeyFields()
-        if (kf != null) {
-          kf
-        } else {
-          val kfs = typeDefinition.implementsInterfaces.map { it to keyFields(it) }.filter { it.second.isNotEmpty() }
-          if (kfs.isNotEmpty()) {
-            check(kfs.size == 1) {
-              val candidates = kfs.map { "${it.first}: ${it.second}" }.joinToString("\n")
-              "Object '$name' inherits different keys from different interfaces:\n$candidates\nSpecify @$TYPE_POLICY explicitely"
-            }
-          }
-          kfs.singleOrNull()?.second ?: emptySet()
-        }
-      }
-      is GQLInterfaceTypeDefinition -> {
-        val kf = typeDefinition.directives.toKeyFields()
-        if (kf != null) {
-          kf
-        } else {
-          val kfs = typeDefinition.implementsInterfaces.map { it to keyFields(it) }.filter { it.second.isNotEmpty() }
-          if (kfs.isNotEmpty()) {
-            check(kfs.size == 1) {
-              val candidates = kfs.map { "${it.first}: ${it.second}" }.joinToString("\n")
-              "Interface '$name' inherits different keys from different interfaces:\n$candidates\nSpecify @$TYPE_POLICY explicitely"
-            }
-          }
-          kfs.singleOrNull()?.second ?: emptySet()
-        }
-      }
-      is GQLUnionTypeDefinition -> typeDefinition.directives.toKeyFields() ?: emptySet()
-      else -> error("Type '$name' cannot have key fields")
-    }
+    return keyFields[name] ?: emptySet()
   }
 
   /**
-   * Returns the key Fields or null if there's no directive
+   * return whether the given directive should be removed from operation documents before being sent to the server
    */
-  private fun List<GQLDirective>.toKeyFields(): Set<String>? {
-    val directives = filter { it.name == TYPE_POLICY }
-    if (directives.isEmpty()) {
-      return null
-    }
-    @OptIn(ApolloExperimental::class)
-    return directives.flatMap {
-      (it.arguments!!.arguments.first().value as GQLStringValue).value.buffer().parseAsGQLSelections().valueAssertNoErrors().map { gqlSelection ->
-        // No need to check here, this should be done during validation
-        (gqlSelection as GQLField).name
-      }
-    }.toSet()
+  @ApolloInternal
+  fun shouldStrip(name: String): Boolean {
+    return directivesToStrip.contains(name)
   }
 
   companion object {
     const val TYPE_POLICY = "typePolicy"
     const val FIELD_POLICY = "fieldPolicy"
+    const val NONNULL = "nonnull"
+    const val OPTIONAL = "optional"
+    const val REQUIRES_OPT_IN = "requiresOptIn"
+
     const val FIELD_POLICY_FOR_FIELD = "forField"
     const val FIELD_POLICY_KEY_ARGS = "keyArgs"
+
+    /**
+     * Parses the given [map] and creates a new [Schema].
+     * The [map] must come from a previous call to [toMap] to make sure the schema is valid
+     */
+    @Suppress("UNCHECKED_CAST")
+    @ApolloInternal
+    fun fromMap(map: Map<String, Any>): Schema {
+      return Schema(
+          definitions = Buffer().writeUtf8(map["sdl"] as String).parseAsGQLDocument().value!!.definitions,
+          keyFields = (map["keyFields"]!! as Map<String, Collection<String>>).mapValues { it.value.toSet() },
+          foreignNames = map["foreignNames"]!! as Map<String, String>,
+          directivesToStrip = map["directivesToStrip"]!! as List<String>,
+      )
+    }
   }
 }
+

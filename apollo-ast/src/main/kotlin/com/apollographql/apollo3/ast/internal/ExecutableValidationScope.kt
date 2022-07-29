@@ -47,16 +47,19 @@ import com.apollographql.apollo3.ast.sharesPossibleTypesWith
 internal class ExecutableValidationScope(
     private val schema: Schema,
     private val fragmentDefinitions: Map<String, GQLFragmentDefinition>,
-) : ValidationScope, VariableReferencesScope {
+) : ValidationScope {
   override val typeDefinitions = schema.typeDefinitions
   override val directiveDefinitions = schema.directiveDefinitions
+
+  override val foreignNames: Map<String, String>
+    get() = schema.foreignNames
 
   override val issues = mutableListOf<Issue>()
 
   /**
    * As the tree is walked, variable references will be put here
    */
-  override val variableUsages = mutableListOf<VariableUsage>()
+  private val variableUsages = mutableListOf<VariableUsage>()
 
   private val deferDirectiveLabels = mutableMapOf<String, SourceLocation>()
   private val deferDirectivePathAndLabels = mutableMapOf<String, SourceLocation>()
@@ -106,24 +109,6 @@ internal class ExecutableValidationScope(
     return variableUsages.distinctBy { it.variable.name }
   }
 
-  private fun decapitalizeFirstLetter(name: String): String {
-    val builder = StringBuilder(name.length)
-    var isDecapitalized = false
-    name.forEach {
-      builder.append(if (!isDecapitalized && it.isLetter()) {
-        isDecapitalized = true
-        it.toString().lowercase()
-      } else {
-        it.toString()
-      })
-    }
-    return builder.toString()
-  }
-
-  private fun isFirstLetterUpperCase(name: String): Boolean {
-    return name.firstOrNull { it.isLetter() }?.isUpperCase() ?: true
-  }
-
   private fun GQLField.validate(typeDefinitionInScope: GQLTypeDefinition, path: String) {
     val fieldDefinition = definitionFromScope(schema, typeDefinitionInScope)
     if (fieldDefinition == null) {
@@ -132,22 +117,6 @@ internal class ExecutableValidationScope(
           sourceLocation = sourceLocation
       )
       return
-    }
-
-    if (alias != null) {
-      if (isFirstLetterUpperCase(alias)) {
-        issues.add(Issue.UpperCaseField(message = """
-                      Capitalized alias '$alias' is not supported as it causes name clashes with the generated models. Use '${decapitalizeFirstLetter(alias)}' instead.
-                    """.trimIndent(),
-            sourceLocation = sourceLocation)
-        )
-      }
-    } else if (isFirstLetterUpperCase(name)) {
-      issues.add(Issue.UpperCaseField(message = """
-                      Capitalized field '$name' is not supported as it causes name clashes with the generated models. Use an alias instead.
-                    """.trimIndent(),
-          sourceLocation = sourceLocation)
-      )
     }
 
     if (fieldDefinition.directives.findDeprecationReason() != null) {
@@ -159,7 +128,9 @@ internal class ExecutableValidationScope(
         sourceLocation,
         fieldDefinition.arguments,
         "field `${fieldDefinition.name}`"
-    )
+    ) {
+      variableUsages.add(it)
+    }
 
     val leafTypeDefinition = typeDefinitions[fieldDefinition.type.leafType().name]
 
@@ -193,7 +164,9 @@ internal class ExecutableValidationScope(
     }
 
     directives.forEach {
-      validateDirective(it, this)
+      validateDirective(it, this) {
+        variableUsages.add(it)
+      }
     }
   }
 
@@ -219,7 +192,9 @@ internal class ExecutableValidationScope(
     selectionSet.validate(inlineFragmentTypeDefinition, this@validate, path)
 
     directives.forEach {
-      validateDirective(it, this)
+      validateDirective(it, this) {
+        variableUsages.add(it)
+      }
       if (it.name == "experimental_defer" && !path.startsWith('-')) it.validateDeferDirective(selectionSetParent, path)
     }
   }
@@ -254,7 +229,9 @@ internal class ExecutableValidationScope(
     fragmentDefinition.selectionSet.validate(fragmentTypeDefinition, this@validate, path)
 
     directives.forEach {
-      validateDirective(it, this)
+      validateDirective(it, this) {
+        variableUsages.add(it)
+      }
       if (it.name == "experimental_defer" && !path.startsWith('-')) it.validateDeferDirective(selectionSetParent, path)
     }
   }

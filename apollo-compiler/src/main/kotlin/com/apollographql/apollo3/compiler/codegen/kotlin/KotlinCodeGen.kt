@@ -65,6 +65,7 @@ class KotlinCodeGen(
     private val scalarMapping: Map<String, ScalarInfo>,
     private val nameToClassName: Map<String, String>,
     private val addJvmOverloads: Boolean,
+    private val requiresOptInAnnotation: String?
 ) {
   /**
    * @param outputDir: the directory where to write the Kotlin files
@@ -72,7 +73,7 @@ class KotlinCodeGen(
    */
   fun write(outputDir: File, testDir: File): ResolverInfo {
     val upstreamResolver = resolverInfos.fold(null as KotlinResolver?) { acc, resolverInfo ->
-      KotlinResolver(resolverInfo.entries, acc, scalarMapping)
+      KotlinResolver(resolverInfo.entries, acc, scalarMapping, requiresOptInAnnotation)
     }
 
     val layout = KotlinCodegenLayout(
@@ -85,7 +86,7 @@ class KotlinCodeGen(
 
     val context = KotlinContext(
         layout = layout,
-        resolver = KotlinResolver(emptyList(), upstreamResolver, scalarMapping),
+        resolver = KotlinResolver(emptyList(), upstreamResolver, scalarMapping, requiresOptInAnnotation),
         targetLanguageVersion = targetLanguageVersion,
     )
     val builders = mutableListOf<CgFileBuilder>()

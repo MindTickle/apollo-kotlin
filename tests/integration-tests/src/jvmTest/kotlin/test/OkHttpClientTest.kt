@@ -2,8 +2,8 @@ package test
 
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.integration.normalizer.HeroNameQuery
-import com.apollographql.apollo3.mockserver.MockResponse
 import com.apollographql.apollo3.mockserver.MockServer
+import com.apollographql.apollo3.mockserver.enqueue
 import com.apollographql.apollo3.network.okHttpClient
 import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
@@ -22,7 +22,7 @@ class OkHttpClientTest {
 
     runBlocking {
       val mockServer = MockServer()
-      mockServer.enqueue(MockResponse())
+      mockServer.enqueue(statusCode = 200)
 
       val apolloClient = ApolloClient.Builder()
           .serverUrl(mockServer.url())

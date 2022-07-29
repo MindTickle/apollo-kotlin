@@ -7,11 +7,13 @@ title: HTTP cache
 
 > ℹ️ The HTTP cache is only available on the JVM.
 
+## Setup
+
 To enable HTTP cache support, add the dependency to your project's `build.gradle` file:
 
 ```kotlin title="build.gradle[.kts]"
 dependencies {
-  implementation("com.apollographql.apollo3:apollo-http-cache:3.3.0")
+  implementation("com.apollographql.apollo3:apollo-http-cache:3.3.2")
 }
 ```
 
@@ -22,9 +24,6 @@ android {
     compileOptions {
         // Flag to enable support for the new language APIs
         coreLibraryDesugaringEnabled = true
-        // Sets Java compatibility to Java 8
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
     }
 }
 ```
@@ -41,6 +40,8 @@ apolloClient = ApolloClient.Builder()
     )
     .build()
 ```
+
+## Usage
 
 The HTTP cache is a least recently used (LRU) cache with a configurable max size.
 
@@ -59,3 +60,33 @@ val response = apolloClient.query(query)
 ```
 
 If the query is present in cache, it will be used to return `response.data`. If not, a `HttpCacheMissException` will be thrown.
+
+You can also set an expiration time either globally or for specific queries. The entries will automatically be removed from the cache after the expiration time:
+
+```kotlin
+// Globally
+apolloClient = ApolloClient.Builder()
+    .httpCache(/*...*/)
+    // Expire after 1 hour
+    .httpExpireTimeout(60 * 60 * 1000)
+    .build()
+
+// On a specific query
+val response = apolloClient.query(query)
+    // Expire after 1 hour
+    .httpExpireTimeout(60 * 60 * 1000)
+    .execute()
+```
+
+If a specific query must not be cached, you can use `httpDoNotStore()`:
+
+```kotlin
+val response = apolloClient.query(query)
+    // Don't cache this query
+    .httpDoNotStore(httpDoNotStore = true)
+    .execute()
+```
+
+## Clearing the cache
+
+Call `apolloClient.httpCache.clearAll()` to clear the cache of all entries.

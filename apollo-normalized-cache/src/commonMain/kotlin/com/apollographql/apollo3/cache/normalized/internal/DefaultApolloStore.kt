@@ -1,10 +1,10 @@
 package com.apollographql.apollo3.cache.normalized.internal
 
-import com.apollographql.apollo3.annotations.ApolloInternal
 import com.apollographql.apollo3.api.CustomScalarAdapters
 import com.apollographql.apollo3.api.Fragment
 import com.apollographql.apollo3.api.Operation
 import com.apollographql.apollo3.cache.normalized.ApolloStore
+import com.apollographql.apollo3.cache.normalized.api.ApolloCacheHeaders
 import com.apollographql.apollo3.cache.normalized.api.CacheHeaders
 import com.apollographql.apollo3.cache.normalized.api.CacheKey
 import com.apollographql.apollo3.cache.normalized.api.CacheKeyGenerator
@@ -15,13 +15,13 @@ import com.apollographql.apollo3.cache.normalized.api.Record
 import com.apollographql.apollo3.cache.normalized.api.internal.OptimisticCache
 import com.apollographql.apollo3.cache.normalized.api.normalize
 import com.apollographql.apollo3.cache.normalized.api.readDataFromCache
+import com.apollographql.apollo3.mpp.currentTimeMillis
 import com.benasher44.uuid.Uuid
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlin.reflect.KClass
 
-@OptIn(ApolloInternal::class)
 internal class DefaultApolloStore(
     normalizedCacheFactory: NormalizedCacheFactory,
     private val cacheKeyGenerator: CacheKeyGenerator,
@@ -100,7 +100,6 @@ internal class DefaultApolloStore(
   ): D {
     // Capture a local reference so as not to freeze "this"
     val cacheResolver = cacheResolver
-
 
     return cacheHolder.readAccess { cache ->
       operation.readDataFromCache(
@@ -210,6 +209,7 @@ internal class DefaultApolloStore(
 
     return records.values.toSet() to changedKeys
   }
+
 
   override suspend fun <D : Operation.Data> writeOptimisticUpdates(
       operation: Operation<D>,

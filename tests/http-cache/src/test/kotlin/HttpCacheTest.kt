@@ -1,12 +1,11 @@
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.api.Optional
 import com.apollographql.apollo3.cache.http.HttpFetchPolicy
 import com.apollographql.apollo3.cache.http.httpCache
 import com.apollographql.apollo3.cache.http.httpExpireTimeout
 import com.apollographql.apollo3.cache.http.httpFetchPolicy
 import com.apollographql.apollo3.cache.http.isFromHttpCache
+import com.apollographql.apollo3.exception.ApolloParseException
 import com.apollographql.apollo3.exception.HttpCacheMissException
-import com.apollographql.apollo3.mockserver.MockResponse
 import com.apollographql.apollo3.mockserver.MockServer
 import com.apollographql.apollo3.mockserver.enqueue
 import com.apollographql.apollo3.network.okHttpClient
@@ -77,7 +76,7 @@ class HttpCacheTest {
   @Test
   fun NetworkOnly() = runTest(before = { before() }, after = { tearDown() }) {
     mockServer.enqueue(response)
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
 
     runBlocking {
       val response = apolloClient.query(GetRandomQuery()).execute()
@@ -95,7 +94,7 @@ class HttpCacheTest {
   @Test
   fun NetworkFirst() = runTest(before = { before() }, after = { tearDown() }) {
     mockServer.enqueue(response)
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
 
     runBlocking {
       var response = apolloClient.query(GetRandomQuery())
@@ -158,7 +157,7 @@ class HttpCacheTest {
     val okHttpClient = OkHttpClient.Builder().addInterceptor(interceptor).build()
 
     val mockServer = MockServer()
-    mockServer.enqueue(MockResponse())
+    mockServer.enqueue(statusCode = 200)
     val apolloClient = ApolloClient.Builder()
         .serverUrl(mockServer.url())
         .okHttpClient(okHttpClient)
@@ -194,5 +193,34 @@ class HttpCacheTest {
       mockServer.takeRequest()
     }
   }
-}
 
+  @Test
+  fun incompleteJsonIsNotCached() = runTest(before = { before() }, after = { tearDown() }) {
+    mockServer.enqueue("""{"data":""")
+    assertFailsWith<ApolloParseException> {
+      apolloClient.query(GetRandomQuery()).execute()
+    }
+    // Should not have been cached
+    assertFailsWith<HttpCacheMissException> {
+      apolloClient.query(GetRandomQuery()).httpFetchPolicy(HttpFetchPolicy.CacheOnly).execute()
+    }
+  }
+
+  @Test
+  fun responseWithGraphQLErrorIsNotCached() = runTest(before = { before() }, after = { tearDown() }) {
+    mockServer.enqueue("""
+        {
+          "data": {
+            "random": 42
+          },
+          "errors": [ { "message": "GraphQL error" } ]
+        }
+      """)
+    apolloClient.query(GetRandomQuery()).execute()
+    // Should not have been cached
+    assertFailsWith<HttpCacheMissException> {
+      apolloClient.query(GetRandomQuery()).httpFetchPolicy(HttpFetchPolicy.CacheOnly).execute()
+    }
+  }
+
+}

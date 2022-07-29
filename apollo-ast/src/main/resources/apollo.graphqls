@@ -1,3 +1,10 @@
+# The kotlin_labs directives
+# You can import them with
+#
+# extend schema @link(url: "https://specs.apollo.dev/kotlin_labs/v0.1", import: ["@optional", "@nonnull", "@typePolicy", "@fieldPolicy"])
+#
+# They are included unconditionally for historical reasons but this will change in a future version
+
 # Marks a field or variable definition as optional or required
 # By default Apollo Kotlin generates all variables of nullable types as optional, in compliance with the GraphQL specification,
 # but this can be configured with this directive, because if the variable was added in the first place, it's usually to pass a value
@@ -13,8 +20,23 @@ directive @nonnull(fields: String! = "") on OBJECT | FIELD
 
 # Marks fields as key fields. Key fields are used to compute the cache key of an object
 # `keyFields` should contain a selection set. Composite fields are not supported yet.
-directive @typePolicy(keyFields: String!) on OBJECT
+directive @typePolicy(keyFields: String!) on OBJECT | INTERFACE | UNION
 
 # Indicates how to compute a key from a field arguments.
 # `keyArgs` should contain a selection set. Composite args are not supported yet.
 directive @fieldPolicy(forField: String!, keyArgs: String!) repeatable on OBJECT
+
+"""
+Indicates that the given field, argument, input field or enum value requires
+giving explicit consent before being used.
+"""
+directive @requiresOptIn(feature: String!) repeatable
+on FIELD_DEFINITION
+    | ARGUMENT_DEFINITION
+    | INPUT_FIELD_DEFINITION
+    | ENUM_VALUE
+
+# Use the specified name for the enum value in the generated code.
+# Use this for instance when the name would clash with a reserved keyword or field in the generated code.
+# This directive is experimental.
+directive @targetName(name: String!) on ENUM_VALUE

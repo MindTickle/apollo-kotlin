@@ -1,7 +1,6 @@
 package test
 
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.Operation
@@ -25,7 +24,6 @@ import com.apollographql.apollo3.integration.normalizer.CharacterNameByIdQuery
 import com.apollographql.apollo3.integration.normalizer.HeroNameQuery
 import com.apollographql.apollo3.interceptor.ApolloInterceptor
 import com.apollographql.apollo3.interceptor.ApolloInterceptorChain
-import com.apollographql.apollo3.mockserver.MockResponse
 import com.apollographql.apollo3.mockserver.MockServer
 import com.apollographql.apollo3.mockserver.enqueue
 import com.apollographql.apollo3.testing.enqueue
@@ -36,7 +34,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -50,7 +47,6 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
-@OptIn(ApolloExperimental::class)
 class FetchPolicyTest {
   private lateinit var mockServer: MockServer
   private lateinit var apolloClient: ApolloClient
@@ -190,7 +186,7 @@ class FetchPolicyTest {
 
     // Initial state: everything fails
     // Cache Error + Network Error => Error
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
     assertFailsWith(ApolloCompositeException::class) {
       apolloClient.query(query).fetchPolicy(FetchPolicy.CacheAndNetwork).toFlow().toList()
     }
@@ -209,7 +205,7 @@ class FetchPolicyTest {
     // Now cache is populated but make the network fail again
     // Cache Success + Network Error => 1 response + 1 network exception
     caught = null
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
     responses = apolloClient.query(query).fetchPolicy(FetchPolicy.CacheAndNetwork).toFlow().catch { caught = it }.toList()
 
     assertIs<ApolloException>(caught)
@@ -236,7 +232,7 @@ class FetchPolicyTest {
 
     // Initial state: everything fails
     // Cache Error + Network Error => Error
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
     assertFailsWith(ApolloCompositeException::class) {
       apolloClient.query(query).executeCacheAndNetwork().toList()
     }
@@ -253,7 +249,7 @@ class FetchPolicyTest {
 
     // Now cache is populated but make the network fail again
     // Cache Success + Network Error => 1 response
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
     responses = apolloClient.query(query).executeCacheAndNetwork().toList()
 
     assertEquals(1, responses.size)

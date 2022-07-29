@@ -6,6 +6,7 @@ import com.apollographql.apollo3.ApolloCall
 import com.apollographql.apollo3.ApolloClient
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_0_0
+import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.ExecutionContext
@@ -13,6 +14,8 @@ import com.apollographql.apollo3.api.MutableExecutionOptions
 import com.apollographql.apollo3.api.Mutation
 import com.apollographql.apollo3.api.Operation
 import com.apollographql.apollo3.api.Query
+import com.apollographql.apollo3.api.http.get
+import com.apollographql.apollo3.cache.normalized.api.ApolloCacheHeaders
 import com.apollographql.apollo3.cache.normalized.api.CacheHeaders
 import com.apollographql.apollo3.cache.normalized.api.CacheKeyGenerator
 import com.apollographql.apollo3.cache.normalized.api.CacheResolver
@@ -25,10 +28,13 @@ import com.apollographql.apollo3.exception.ApolloCompositeException
 import com.apollographql.apollo3.exception.ApolloException
 import com.apollographql.apollo3.exception.CacheMissException
 import com.apollographql.apollo3.interceptor.ApolloInterceptor
+import com.apollographql.apollo3.interceptor.ApolloInterceptorChain
+import com.apollographql.apollo3.mpp.currentTimeMillis
+import com.apollographql.apollo3.network.http.HttpInfo
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlin.jvm.JvmName
 import kotlin.jvm.JvmOverloads
@@ -311,6 +317,74 @@ fun <T> MutableExecutionOptions<T>.storePartialResponses(storePartialResponses: 
 )
 
 /**
+ * @param storeReceiveDate Whether to store the receive date in the cache.
+ *
+ * Default: false
+ */
+@ApolloExperimental
+fun <T> MutableExecutionOptions<T>.storeReceiveDate(storeReceiveDate: Boolean) = addExecutionContext(
+    StoreReceiveDateContext(storeReceiveDate)
+)
+
+/**
+ * @param storeExpirationDate Whether to store the expiration date in the cache.
+ *
+ * The expiration date is computed from the response HTTP headers
+ *
+ * Default: false
+ */
+@ApolloExperimental
+fun <T> MutableExecutionOptions<T>.storeExpirationDate(storeExpirationDate: Boolean): T {
+  addExecutionContext(StoreExpirationDateContext(storeExpirationDate))
+  if (this is ApolloClient.Builder) {
+    check(interceptors.none { it is StoreExpirationInterceptor }) {
+      "Apollo: storeExpirationDate() can only be called once on ApolloClient.Builder()"
+    }
+    addInterceptor(StoreExpirationInterceptor())
+  }
+  @Suppress("UNCHECKED_CAST")
+  return this as T
+}
+
+private class StoreExpirationInterceptor: ApolloInterceptor {
+  override fun <D : Operation.Data> intercept(request: ApolloRequest<D>, chain: ApolloInterceptorChain): Flow<ApolloResponse<D>> {
+    return chain.proceed(request).map {
+      val store = request.executionContext[StoreExpirationDateContext]?.value
+      if (store != true) {
+        return@map it
+      }
+      val headers = it.executionContext[HttpInfo]?.headers.orEmpty()
+
+      val cacheControl = headers.get("cache-control")?.lowercase() ?: return@map it
+
+      val c = cacheControl.split(",").map { it.trim() }
+      val maxAge = c.mapNotNull {
+        if (it.startsWith("max-age=")) {
+          it.substring(8).toIntOrNull()
+        } else {
+          null
+        }
+      }.firstOrNull() ?: return@map it
+
+      val age = headers.get("age")?.toIntOrNull()
+      val expires = if (age != null) {
+        currentTimeMillis() / 1000 + maxAge - age
+      } else {
+        currentTimeMillis() / 1000 + maxAge
+      }
+
+      return@map it.newBuilder()
+          .cacheHeaders(
+              it.cacheHeaders.newBuilder()
+                  .addHeader(ApolloCacheHeaders.DATE, expires.toString())
+                  .build()
+          )
+          .build()
+    }
+  }
+}
+
+/**
  * @param cacheHeaders additional cache headers to be passed to your [com.apollographql.apollo3.cache.normalized.api.NormalizedCache]
  */
 fun <T> MutableExecutionOptions<T>.cacheHeaders(cacheHeaders: CacheHeaders) = addExecutionContext(
@@ -353,6 +427,9 @@ internal val <D : Operation.Data> ApolloRequest<D>.doNotStore
 
 internal val <D : Operation.Data> ApolloRequest<D>.storePartialResponses
   get() = executionContext[StorePartialResponsesContext]?.value ?: false
+
+internal val <D : Operation.Data> ApolloRequest<D>.storeReceiveDate
+  get() = executionContext[StoreReceiveDateContext]?.value ?: false
 
 internal val <D : Operation.Data> ApolloRequest<D>.emitCacheMisses
   get() = executionContext[EmitCacheMissesContext]?.value ?: false
@@ -525,6 +602,21 @@ internal class StorePartialResponsesContext(val value: Boolean) : ExecutionConte
   companion object Key : ExecutionContext.Key<StorePartialResponsesContext>
 }
 
+internal class StoreReceiveDateContext(val value: Boolean) : ExecutionContext.Element {
+  override val key: ExecutionContext.Key<*>
+    get() = Key
+
+  companion object Key : ExecutionContext.Key<StoreReceiveDateContext>
+}
+
+internal class StoreExpirationDateContext(val value: Boolean) : ExecutionContext.Element {
+  override val key: ExecutionContext.Key<*>
+    get() = Key
+
+  companion object Key : ExecutionContext.Key<StoreExpirationDateContext>
+}
+
+
 internal class WriteToCacheAsynchronouslyContext(val value: Boolean) : ExecutionContext.Element {
   override val key: ExecutionContext.Key<*>
     get() = Key
@@ -576,3 +668,9 @@ internal fun <D : Operation.Data> ApolloRequest.Builder<D>.fetchFromCache(fetchF
 
 internal val <D : Operation.Data> ApolloRequest<D>.fetchFromCache
   get() = executionContext[FetchFromCacheContext]?.value ?: false
+
+fun <D : Operation.Data> ApolloResponse.Builder<D>.cacheHeaders(cacheHeaders: CacheHeaders) =
+    addExecutionContext(CacheHeadersContext(cacheHeaders))
+
+val <D : Operation.Data> ApolloResponse<D>.cacheHeaders
+  get() = executionContext[CacheHeadersContext]?.value ?: CacheHeaders.NONE

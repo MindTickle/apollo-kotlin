@@ -1,6 +1,5 @@
 package com.apollographql.apollo3.compiler.codegen
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.GQLField
 import com.apollographql.apollo3.ast.GQLInterfaceTypeDefinition
 import com.apollographql.apollo3.ast.GQLObjectTypeDefinition
@@ -11,14 +10,14 @@ import com.apollographql.apollo3.ast.SourceAwareException
 import com.apollographql.apollo3.ast.parseAsGQLSelections
 import okio.Buffer
 
-internal fun GQLTypeDefinition.keyArgs(fieldName: String): Set<String> {
+internal fun GQLTypeDefinition.keyArgs(fieldName: String, schema: Schema): Set<String> {
   val directives = when (this) {
     is GQLObjectTypeDefinition -> directives
     is GQLInterfaceTypeDefinition -> directives
     else -> emptyList()
   }
 
-  return directives.filter { it.name == Schema.FIELD_POLICY }.filter {
+  return directives.filter { schema.originalDirectiveName(it.name) == Schema.FIELD_POLICY }.filter {
     (it.arguments?.arguments?.single { it.name == Schema.FIELD_POLICY_FOR_FIELD }?.value as GQLStringValue).value == fieldName
   }.flatMap {
     val keyArgsValue = it.arguments?.arguments?.single { it.name == Schema.FIELD_POLICY_KEY_ARGS }?.value
@@ -27,7 +26,6 @@ internal fun GQLTypeDefinition.keyArgs(fieldName: String): Set<String> {
       throw SourceAwareException("Apollo: no keyArgs found or wrong keyArgs type", it.sourceLocation)
     }
 
-    @OptIn(ApolloExperimental::class)
     Buffer().writeUtf8(keyArgsValue.value)
         .parseAsGQLSelections()
         .value

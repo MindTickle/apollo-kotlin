@@ -1,6 +1,5 @@
 package com.apollographql.apollo3.mockserver.test
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.http.HttpMethod
 import com.apollographql.apollo3.api.http.HttpRequest
 import com.apollographql.apollo3.mockserver.MockRequest
@@ -11,7 +10,6 @@ import com.apollographql.apollo3.network.http.DefaultHttpEngine
 import com.apollographql.apollo3.testing.runTest
 import kotlin.test.Test
 
-@OptIn(ApolloExperimental::class)
 class CustomHandlerTest {
   private lateinit var mockServer: MockServer
 
@@ -21,16 +19,16 @@ class CustomHandlerTest {
 
   @Test
   fun customHandler() = runTest(after = { tearDown() }) {
-    val mockResponse0 = MockResponse(
-        body = "Hello, World! 000",
-        statusCode = 404,
-        headers = mapOf("Content-Type" to "text/plain"),
-    )
-    val mockResponse1 = MockResponse(
-        body = "Hello, World! 001",
-        statusCode = 200,
-        headers = mapOf("X-Test" to "true"),
-    )
+    val mockResponse0 = MockResponse.Builder()
+        .body("Hello, World! 000")
+        .statusCode(404)
+        .addHeader("Content-Type", "text/plain")
+        .build()
+    val mockResponse1 = MockResponse.Builder()
+        .body("Hello, World! 001")
+        .statusCode(200)
+        .addHeader("X-Test", "true")
+        .build()
 
     val mockServerHandler = object : MockServerHandler {
       override fun handle(request: MockRequest): MockResponse {

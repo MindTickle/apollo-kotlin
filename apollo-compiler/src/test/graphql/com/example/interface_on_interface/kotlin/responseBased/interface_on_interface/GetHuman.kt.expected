@@ -42,7 +42,7 @@ public class GetHuman() : Query<GetHuman.Data> {
     name = "data",
     type = com.example.interface_on_interface.type.Query.type
   )
-  .selections(selections = GetHumanSelections.root)
+  .selections(selections = GetHumanSelections.__root)
   .build()
 
   public data class Data(
@@ -95,8 +95,9 @@ public class GetHuman() : Query<GetHuman.Data> {
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "query GetHuman { human { id name height } node { __typename ... on Human { height } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "query GetHuman { human { id name height } node { __typename ... on Human { height } } }"
 
     public const val OPERATION_NAME: String = "GetHuman"
   }

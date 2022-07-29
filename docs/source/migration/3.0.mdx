@@ -304,11 +304,15 @@ apolloClient.subscription(subscription).toFlow()
 
 Apollo Kotlin 3 ships an optional [apollo-adapters](https://apollographql.github.io/apollo-kotlin/kdoc/apollo-adapters/com.apollographql.apollo3.adapter/index.html) artifact that includes adapters for common scalar types like:
 
-* `InstantAdapter` for `kotlinx.datetime.Instant` ISO8601 dates
-* `LocalDateAdapter` for `kotlinx.datetime.LocalDate` ISO8601 dates
+* `KotlinxInstantAdapter` for `kotlinx.datetime.Instant` ISO8601 dates
+* `JavaInstantAdapter` for `java.time.Instant` ISO8601 dates
+* `KotlinxLocalDateAdapter` for `kotlinx.datetime.LocalDate` ISO8601 dates
+* `JavaLocalDateAdapter` for `java.time.LocalDate` ISO8601 dates
+* `KotlinxLocalDateTimeAdapter` for `kotlinx.datetime.LocalDateTime` ISO8601 dates
+* `JavaLocalDateTimeAdapter` for `java.time.LocalDateTime` ISO8601 dates
+* `JavaOffsetDateTimeAdapter` for `java.time.OffsetDateTime` ISO8601 dates
 * `DateAdapter` for `java.util.Date` ISO8601 dates
-* `LongAdapter` for `java.lang.Long`
-* `BigDecimalAdapter` for a MPP `BigDecimal` class holding big decimal values
+* `BigDecimalAdapter` for multiplatform `com.apollographql.apollo3.adapter.BigDecimal` class holding big decimal values
 
 To include them, add this dependency to your gradle file:
 
@@ -438,13 +442,14 @@ val response = apolloClient.query(request)
 Watchers now default to a `CacheOnly` refetchPolicy instead `CACHE_FIRST`. To keep behaviour unchanged, set a `refetchPolicy` on your watchers:
 
 ```kotlin
-val response = apolloClient.subscribe(subscription)
+val response = apolloClient.query(query)
+                      .watcher()
                       .toFlow()
 
 // With
-val response = apolloClient.subscription(subscription)
+val response = apolloClient.query(query)
                       .refetchPolicy(CacheFirst)
-                      .toFlow()
+                      .watch()
 ```
 
 #### `CacheKeyResolver`
@@ -729,9 +734,18 @@ Apollo Android 3.x instead uses `WebsocketNetworkTransport` to expose a simplifi
 - `protocolFactory` allows using `graphql-ws` or AppSync (or your custom one) as a lowlevel protocol instead of the default.
 - `reopenWhen` allows to automatically re-subscribe in case of a network error or another error.
 
-If you were previously using `apolloClient.subscriptionManager.reconnect()` to force a Websocket reconnect (for an example to send new authentication parameters), you should now create a new `ApolloClient`.
+If you were previously using `apolloClient.subscriptionManager.reconnect()` to force a Websocket reconnect (for example
+to send new authentication parameters), you can now
+call `apolloClient.subscriptionNetworkTransport.closeConnection(<your exception>)`: this will behave as if a network
+error occurred, and you can react to this by reconnecting with `reopenWhen`.
 
-If you feel some API is missing from `SubscriptionManager`, please [reach out](https://github.com/apollographql/apollo-kotlin/issues/new?assignees=&labels=%3Asparkles%3A+Type%3A+Feature&template=feature_request.md&title=) so we can discuss the best way to add them.
+If you were previously using `subscriptionConnectionParams` to authenticate your subscription, you can now use
+`wsProtocol` with a `connectionPayload` passed inside the `SubscriptionWsProtocol.Factory`. More information can be
+found in [Authenticating your WebSockets](../advanced/authentication.mdx#authenticating-your-websockets).
+
+If you feel some API is missing from `SubscriptionManager`,
+please [reach out](https://github.com/apollographql/apollo-kotlin/issues/new?assignees=&labels=%3Asparkles%3A+Type%3A+Feature&template=feature_request.md&title=)
+so we can discuss the best way to add them.
 
 ### Downloading schemas
 
@@ -746,4 +760,16 @@ Because it is not possible to determine the Gradle current working directory rel
   --schema="app/src/main/graphql/com/example/schema.graphqls"
 ```
 
-If you configured the `introspection {}` or `registry {}` blocks in your Gradle scripts, you should now use `downloadServiceApolloSchemaFromIntrospection` or `downloadServiceApolloSchemaFromRegistry` 
+If you configured the `introspection {}` or `registry {}` blocks in your Gradle scripts, you should now use `downloadServiceApolloSchemaFromIntrospection` or `downloadServiceApolloSchemaFromRegistry`
+
+### OkHttp
+
+Because 3.x is multiplatform first, the runtime abstracts OkHttp behind the [HttpEngine API](https://www.apollographql.com/docs/kotlin/advanced/http-engine#the-httpengine-interface). If you were relying on `OkHttpExecutionContext`, you can now use `HttpInfo` to get access to the HTTP response code and headers:
+
+```kotlin
+// Replace
+response.executionContext[OkHttpExecutionContext].response.code
+
+// With
+response.executionContext[HttpInfo]?.statusCode
+```

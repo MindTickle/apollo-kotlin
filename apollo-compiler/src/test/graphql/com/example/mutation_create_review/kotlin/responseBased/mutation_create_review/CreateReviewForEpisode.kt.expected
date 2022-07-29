@@ -43,7 +43,7 @@ internal data class CreateReviewForEpisode(
     name = "data",
     type = com.example.mutation_create_review.type.Mutation.type
   )
-  .selections(selections = CreateReviewForEpisodeSelections.root)
+  .selections(selections = CreateReviewForEpisodeSelections.__root)
   .build()
 
   public data class Data(
@@ -105,8 +105,9 @@ internal data class CreateReviewForEpisode(
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "mutation CreateReviewForEpisode(${'$'}ep: Episode!, ${'$'}review: ReviewInput!) { createReview(episode: ${'$'}ep, review: ${'$'}review) { stars commentary listOfListOfString listOfListOfEnum listOfListOfCustom listOfListOfObject { name } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "mutation CreateReviewForEpisode(${'$'}ep: Episode!, ${'$'}review: ReviewInput!) { createReview(episode: ${'$'}ep, review: ${'$'}review) { stars commentary listOfListOfString listOfListOfEnum listOfListOfCustom listOfListOfObject { name } } }"
 
     public const val OPERATION_NAME: String = "CreateReviewForEpisode"
   }

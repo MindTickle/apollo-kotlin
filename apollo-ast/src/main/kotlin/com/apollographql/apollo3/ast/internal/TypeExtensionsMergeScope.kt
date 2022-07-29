@@ -4,6 +4,7 @@ import com.apollographql.apollo3.ast.GQLDefinition
 import com.apollographql.apollo3.ast.GQLDirective
 import com.apollographql.apollo3.ast.GQLEnumTypeDefinition
 import com.apollographql.apollo3.ast.GQLEnumTypeExtension
+import com.apollographql.apollo3.ast.GQLEnumValueDefinition
 import com.apollographql.apollo3.ast.GQLInputObjectTypeDefinition
 import com.apollographql.apollo3.ast.GQLInputObjectTypeExtension
 import com.apollographql.apollo3.ast.GQLInterfaceTypeDefinition
@@ -16,6 +17,7 @@ import com.apollographql.apollo3.ast.GQLScalarTypeDefinition
 import com.apollographql.apollo3.ast.GQLScalarTypeExtension
 import com.apollographql.apollo3.ast.GQLSchemaDefinition
 import com.apollographql.apollo3.ast.GQLSchemaExtension
+import com.apollographql.apollo3.ast.GQLTypeExtension
 import com.apollographql.apollo3.ast.GQLTypeSystemExtension
 import com.apollographql.apollo3.ast.GQLUnionTypeDefinition
 import com.apollographql.apollo3.ast.GQLUnionTypeExtension
@@ -24,10 +26,8 @@ import com.apollographql.apollo3.ast.SourceLocation
 import com.apollographql.apollo3.ast.UnrecognizedAntlrRule
 
 
-internal fun ValidationScope.mergeExtensions(definitions: List<GQLDefinition>): List<GQLDefinition> {
-  val (extensions, otherDefinitions) = definitions.partition { it is GQLTypeSystemExtension }
-
-  return extensions.fold(otherDefinitions) { acc, extension ->
+internal fun ValidationScope.mergeExtensions(definitions: List<GQLDefinition>, extensions: List<GQLTypeSystemExtension>): List<GQLDefinition> {
+  return extensions.fold(definitions) { acc, extension ->
     when (extension) {
       is GQLSchemaExtension -> mergeSchemaExtension(acc, schemaExtension = extension)
       is GQLScalarTypeExtension -> merge<GQLScalarTypeDefinition, GQLScalarTypeExtension>(acc, extension, "scalar") { merge(it, extension) }
@@ -57,8 +57,30 @@ private fun ValidationScope.merge(
 ): GQLEnumTypeDefinition = with(enumTypeDefinition) {
   return copy(
       directives = mergeDirectives(directives, extension.directives),
-      enumValues = mergeUniquesOrThrow(enumValues, extension.enumValues),
+      enumValues = mergeEnumValues(enumValues, extension.enumValues),
   )
+}
+
+/**
+ * Technically not allowed by the current spec, but useful to be able to add directives on enum values.
+ * See https://github.com/graphql/graphql-spec/issues/952
+ */
+private fun ValidationScope.mergeEnumValues(
+    existingList: List<GQLEnumValueDefinition>,
+    otherList: List<GQLEnumValueDefinition>,
+): List<GQLEnumValueDefinition> {
+  val result = mutableListOf<GQLEnumValueDefinition>()
+  result.addAll(existingList)
+  for (other in otherList) {
+    val existing = result.firstOrNull { it.name == other.name }
+    result += if (existing != null) {
+      result.remove(existing)
+      other.copy(directives = mergeDirectives(existing.directives, other.directives))
+    } else {
+      other
+    }
+  }
+  return result
 }
 
 private fun ValidationScope.merge(
@@ -88,6 +110,7 @@ private fun ValidationScope.merge(
 ): GQLInterfaceTypeDefinition = with(interfaceTypeDefinition) {
   return copy(
       fields = mergeUniquesOrThrow(fields, extension.fields),
+      directives = mergeDirectives(directives, extension.directives),
       implementsInterfaces = mergeUniqueInterfacesOrThrow(implementsInterfaces, extension.implementsInterfaces, extension.sourceLocation)
   )
 }
@@ -164,7 +187,7 @@ private fun ValidationScope.mergeDirectives(
 
   result.addAll(list)
   for (directive in other) {
-    if (result.any { it.name == directive.name } ) {
+    if (result.any { it.name == directive.name }) {
       val definition = directiveDefinitions[directive.name] ?: error("Cannot find directive definition '${directive.name}")
       if (!definition.repeatable) {
         issues.add(Issue.ValidationError("Cannot add non-repeatable directive `${directive.name}`", directive.sourceLocation))

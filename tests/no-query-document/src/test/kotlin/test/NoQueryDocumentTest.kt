@@ -9,11 +9,11 @@ import com.apollographql.apollo3.api.http.HttpMethod
 import com.apollographql.apollo3.api.http.HttpRequest
 import com.apollographql.apollo3.api.http.HttpRequestComposer
 import com.apollographql.apollo3.api.json.buildJsonByteString
-import com.apollographql.apollo3.api.json.writeObject
 import com.apollographql.apollo3.api.json.jsonReader
 import com.apollographql.apollo3.api.json.readAny
-import com.apollographql.apollo3.mockserver.MockResponse
+import com.apollographql.apollo3.api.json.writeObject
 import com.apollographql.apollo3.mockserver.MockServer
+import com.apollographql.apollo3.mockserver.enqueue
 import com.apollographql.apollo3.network.http.HttpNetworkTransport
 import com.apollographql.apollo3.testing.runTest
 import okio.Buffer
@@ -28,7 +28,7 @@ class NoQueryDocumentTest {
       random
     }
   """.trimIndent()
-  
+
   @Test
   fun noQueryDocumentTest() = runTest {
     val mockServer = MockServer()
@@ -63,13 +63,15 @@ class NoQueryDocumentTest {
         )
         .build()
 
-    mockServer.enqueue(MockResponse(statusCode = 500))
+    mockServer.enqueue(statusCode = 500)
     kotlin.runCatching {
       apolloClient.query(GetRandomQuery())
           .execute()
     }
 
     val request = mockServer.takeRequest()
+
+    @Suppress("UNCHECKED_CAST")
     val asMap = Buffer().write(request.body).jsonReader().readAny() as Map<String, Any>
     assertEquals(asMap["query"], queryDocument)
 

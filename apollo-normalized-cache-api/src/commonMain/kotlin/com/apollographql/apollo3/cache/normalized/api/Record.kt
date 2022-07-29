@@ -1,5 +1,7 @@
 package com.apollographql.apollo3.cache.normalized.api
 
+import com.apollographql.apollo3.annotations.ApolloExperimental
+import com.apollographql.apollo3.annotations.ApolloInternal
 import com.apollographql.apollo3.cache.normalized.api.internal.RecordWeigher.calculateBytes
 import com.benasher44.uuid.Uuid
 
@@ -7,7 +9,7 @@ import com.benasher44.uuid.Uuid
  * A normalized entry that corresponds to a response object. Object fields are stored if they are a GraphQL Scalars. If
  * a field is a GraphQL Object a [CacheKey] will be stored instead.
  */
-class Record (
+class Record(
     val key: String,
     /**
      * a list of fields. Values can be
@@ -25,31 +27,61 @@ class Record (
     val mutationId: Uuid? = null,
 ) : Map<String, Any?> by fields {
 
-  val sizeInBytes = calculateBytes(this)
+  @ApolloExperimental
+  var date: Map<String, Long?>? = null
+    private set
+
+  @ApolloInternal
+  constructor(
+      key: String,
+      fields: Map<String, Any?>,
+      mutationId: Uuid?,
+      date: Map<String, Long?>,
+  ) : this(key, fields, mutationId) {
+    this.date = date
+  }
+
+  val sizeInBytes: Int
+    get() {
+      val datesSize = date?.size?.times(8) ?: 0
+      return calculateBytes(this) + datesSize
+    }
 
   /**
    * Returns a merge result record and a set of field keys which have changed, or were added.
    * A field key incorporates any GraphQL arguments in addition to the field name.
    */
-  fun mergeWith(otherRecord: Record): Pair<Record, Set<String>> {
+  @ApolloExperimental
+  fun mergeWith(newRecord: Record, newDate: Long?): Pair<Record, Set<String>> {
     val changedKeys = mutableSetOf<String>()
     val mergedFields = fields.toMutableMap()
+    val date = this.date?.toMutableMap() ?: mutableMapOf()
 
-    for ((otherKey, newFieldValue) in otherRecord.fields) {
-      val hasOldFieldValue = fields.containsKey(otherKey)
-      val oldFieldValue = fields[otherKey]
+    for ((fieldKey, newFieldValue) in newRecord.fields) {
+      val hasOldFieldValue = fields.containsKey(fieldKey)
+      val oldFieldValue = fields[fieldKey]
       if (!hasOldFieldValue || oldFieldValue != newFieldValue) {
-        mergedFields[otherKey] = newFieldValue
-        changedKeys.add("$key.$otherKey")
+        mergedFields[fieldKey] = newFieldValue
+        changedKeys.add("$key.$fieldKey")
+      }
+      // Even if the value did not change update date
+      if (newDate != null) {
+        date[fieldKey] = newDate
       }
     }
 
     return Record(
         key = key,
         fields = mergedFields,
-        mutationId = otherRecord.mutationId
+        mutationId = newRecord.mutationId,
+        date = date
     ) to changedKeys
   }
+
+  fun mergeWith(newRecord: Record): Pair<Record, Set<String>> {
+    return mergeWith(newRecord, null)
+  }
+
 
   /**
    * Returns a set of all field keys.

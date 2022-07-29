@@ -4,7 +4,9 @@ import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.GQLFragmentSpread
 import com.apollographql.apollo3.ast.GQLInlineFragment
 import com.apollographql.apollo3.ast.GQLNode
+import com.apollographql.apollo3.ast.introspection.toSchemaGQLDocument
 import com.apollographql.apollo3.ast.parseAsGQLDocument
+import com.apollographql.apollo3.ast.validateAsSchemaAndAddApolloDefinition
 import com.apollographql.apollo3.compiler.Options.Companion.defaultAddJvmOverloads
 import com.apollographql.apollo3.compiler.TargetLanguage.JAVA
 import com.apollographql.apollo3.compiler.TargetLanguage.KOTLIN_1_5
@@ -20,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import kotlin.time.Duration
-import kotlin.time.DurationUnit
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
@@ -211,8 +212,10 @@ class CodegenTest {
           }.map {
             buildList {
               addAll(it)
-              // add Java
-              add(it.first().copy(generateKotlinModels = false, codegenModels = MODELS_OPERATION_BASED))
+              // add Java if supported
+              if (it.first().folder.name != "big_query") {
+                add(it.first().copy(generateKotlinModels = false, codegenModels = MODELS_OPERATION_BASED))
+              }
             }
           }
           .flatten()
@@ -229,12 +232,9 @@ class CodegenTest {
     private fun aggregate(name: String, filter: (Measurement) -> Boolean): String {
       val filtered = measurements.filter { filter(it) }
       return String.format(
-          "%-50s %-20s %20s %20s %20s\n",
-          "aggregate",
-          name,
+          "%-80s %20s\n",
+          "aggregate-$name",
           filtered.map { it.linesOfCode }.fold(0L) { acc, i -> acc + i }.toString(),
-          filtered.map { it.codegenDuration }.fold(Duration.ZERO) { acc, measurement -> acc + measurement }.toString(),
-          filtered.map { it.compileDuration }.fold(Duration.ZERO) { acc, measurement -> acc + measurement }.toString(),
       )
     }
 
@@ -243,29 +243,33 @@ class CodegenTest {
     fun dumpTimes() {
       if (shouldUpdateMeasurements()) {
         File("src/test/graphql/com/example/measurements").apply {
-          writeText(
+          writeText("""
+            // This file keeps track of the size of generated code to avoid blowing up the codegen size.
+            // If you updated the codegen and test fixtures, you should commit this file too.
+          """.trimIndent())
+
+          appendText("\n\n")
+
+          appendText(
               String.format(
-                  "%-50s %-20s %20s %20s\n",
+                  "%-80s %20s\n",
                   "Test:",
                   "Total LOC:",
-                  "Codegen (ms):",
-                  "Compilation (ms):",
               )
           )
           appendText(aggregate("all") { true })
-          appendText(aggregate("responseBased") { Regex(".*-responseBased-.*").matches(it.name) })
-          appendText(aggregate("operationBased") { Regex(".*-operationBased-.*").matches(it.name) })
-          appendText(aggregate("compat") { Regex(".*-compat-.*").matches(it.name) })
+          appendText(aggregate("kotlin-responseBased") { Regex(".*kotlin-responseBased-.*").matches(it.name) })
+          appendText(aggregate("kotlin-operationBased") { Regex(".*kotlin-operationBased-.*").matches(it.name) })
+          appendText(aggregate("kotlin-compat") { Regex(".*kotlin-compat-.*").matches(it.name) })
+          appendText(aggregate("java-operationBased") { Regex(".*java-operationBased-.*").matches(it.name) })
           appendText("\n")
           appendText(
               measurements.sortedByDescending { it.linesOfCode }
                   .joinToString("\n") { measurement ->
                     String.format(
-                        "%-50s %20s %20s %20s",
+                        "%-80s %20s",
                         measurement.name,
                         measurement.linesOfCode.toString(),
-                        measurement.codegenDuration.toLong(DurationUnit.MILLISECONDS).toString(),
-                        measurement.compileDuration.toString(),
                     )
                   }
           )
@@ -314,7 +318,7 @@ class CodegenTest {
 
       val targetLanguage = if (generateKotlinModels) KOTLIN_1_5 else JAVA
       val targetLanguagePath = if (generateKotlinModels) "kotlin" else "java"
-      val flattenModels = when (targetLanguage) {
+      val flattenModels = folder.name == "capitalized_fields" || when (targetLanguage) {
         JAVA -> true
         else -> {
           @Suppress("DEPRECATION")
@@ -340,12 +344,16 @@ class CodegenTest {
         else -> defaultAddJvmOverloads
       }
 
+      val packageName = "com.example.${folder.name}"
+      val outputDir = File("build/generated/test/${folder.name}/$targetLanguagePath/$codegenModels/")
+
       return Options(
           executableFiles = graphqlFiles,
-          schemaFile = schemaFile,
-          outputDir = File("build/generated/test/${folder.name}/$targetLanguagePath/$codegenModels/"),
-          packageName = "com.example.${folder.name}"
-      ).copy(
+          schema = schemaFile.toSchemaGQLDocument().validateAsSchemaAndAddApolloDefinition().valueAssertNoErrors(),
+          outputDir = outputDir,
+          testDir = outputDir,
+          schemaPackageName = packageName,
+          packageNameGenerator = PackageNameGenerator.Flat(packageName),
           operationOutputGenerator = operationOutputGenerator,
           scalarMapping = customScalarsMapping,
           codegenModels = codegenModels,

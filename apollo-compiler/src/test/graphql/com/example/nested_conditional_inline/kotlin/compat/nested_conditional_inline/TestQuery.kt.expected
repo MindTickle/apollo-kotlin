@@ -41,7 +41,7 @@ public data class TestQuery(
     name = "data",
     type = com.example.nested_conditional_inline.type.Query.type
   )
-  .selections(selections = TestQuerySelections.root)
+  .selections(selections = TestQuerySelections.__root)
   .build()
 
   public data class Data(
@@ -173,8 +173,9 @@ public data class TestQuery(
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "query TestQuery(${'$'}episode: Episode) { hero(episode: ${'$'}episode) { __typename name ... on Human { friends { __typename name ... on Human { height(unit: FOOT) } } } ... on Droid { friends { __typename name ... on Human { height(unit: METER) } } } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "query TestQuery(${'$'}episode: Episode) { hero(episode: ${'$'}episode) { __typename name ... on Human { friends { __typename name ... on Human { height(unit: FOOT) } } } ... on Droid { friends { __typename name ... on Human { height(unit: METER) } } } } }"
 
     public const val OPERATION_NAME: String = "TestQuery"
   }

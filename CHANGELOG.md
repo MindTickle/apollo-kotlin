@@ -1,5 +1,156 @@
 Change Log
 ==========
+
+# Version 3.3.1
+
+_2022-06-13_
+
+This release introduces `@typePolicy` on interface/enums, improvements on subscription error handling, and on Test Builders. It also contains a number of other improvements and bug fixes!
+
+## ✨️ [new] `@typePolicy` on interfaces and unions (#4131)
+[The `@typePolicy` directive](https://www.apollographql.com/docs/kotlin/caching/declarative-ids#typepolicy) can now be declared on interfaces and unions. Thank you @bubba for the contribution!
+
+## 🔌 WebSockets / Subscriptions error handling (#4147)
+An issue where `websocketReopenWhen` was not called in some cases was fixed. Also, this release introduces `SubscriptionOperationException`. A `SubscriptionOperationException` will be thrown instead of the more generic `ApolloNetworkError` if a subscription fails due to a specific operation error.
+
+## 📐 Test Builders improvements and fixes
+* A DslMarker was added to improve usage with nested builders (#4089)
+* When calling a builder, but not assigning it to a field, an error is now thrown, preventing mistakes (#4122)
+* The error message displayed when `__typename` is missing was made clearer (#4146)
+* Fix: use `rawValue` instead of `name` for enums (#4121)
+
+## ✨️ [new] ApolloClient implements Closable (#4142)
+`ApolloClient` now implements `okio.Closable` so you can use [`use`](https://square.github.io/okio/3.x/okio/okio/okio/use.html) with it. Thanks @yogurtearl for this contribution!
+
+## ✨️ [new] experimental `@targetName` directive on enum values (#4144)
+If an enum value name is clashing with a reserved name (e.g. `type`) you can now use this directive to instruct the codeGen to use the specified name for the value instead. This directive is experimental for now.
+
+## ✨️ [new] experimental support for renaming directives (#4174)
+
+As we add more client directives, the risk of nameclash with existing schema directives increases. If this happens, you can now import Apollo client directives using `@link`:
+
+```graphql
+# extra.graphqls
+extend schema @link(url: "https://specs.apollo.dev/kotlin_labs/v0.1") 
+```
+
+This adds a `@kotlin_labs__` prefix to all Apollo client directives:
+
+```graphql
+{
+  hero {
+    name @kotlin_labs__nonnull
+  }
+}
+```
+
+
+## 🤖 `SqlNormalizedCacheFactory` initialization on Android (#4104)
+It is no longer necessary to pass a `Context` when initializing the `SqlNormalizedCacheFactory` on Android. A `Context` is automatically provided, via [App Startup](https://developer.android.com/topic/libraries/app-startup).
+
+```kotlin
+// Before
+val sqlNormalizedCacheFactory = SqlNormalizedCacheFactory(context, "apollo.db")
+
+// After
+val sqlNormalizedCacheFactory = SqlNormalizedCacheFactory("apollo.db")
+```
+
+## 📝 [new] Public API tracking
+This release starts tracking the public API of all modules, including MockServer. Even if the API remains experimental, we'll try to keep the number of breaking changes low in the future.
+
+## 👷‍ All changes
+- 🐘  publish `apollo-gradle-plugin-external` (#4078)
+- publish the R8 mapping file along the relocated jar (#4085)
+- Fix test directories not cleared (#4083)
+- Do not use 'header' as a enum value name as it breaks the Kotlin compiler (#4086)
+- 🧪 @experimental support (#4091)
+- @experimental -> @requiresOptIn (#4175)
+- Do not buffer entire body in Http Cache (#4076)
+- ⬇️  add SchemaDownloader.download() (#4088)
+- add DslMarker for test builders (#4089)
+- MockServer: make MockResponse.body a Flow<ByteString> (#4096)
+- Issue-3909: add ApolloResponse cache headers (#4102)
+- Use rawValue instead of name for enums in test builders (#4121)
+- 💧 first drop for a SQLite backend that stores when each field was last updated (#4104)
+- Add Operation.Data.toJsonString() convenience function for the jvm (#4124)
+- Check for unassigned fields in Test Builders (#4122)
+- Add non-breaking spaces after 'return' (#4127)
+- 🧶 Use a getter instead of a const val OPERATION_QUERY (#4130)
+- Uploads should be read only once even when logging (#4125)
+- Keep the 'interfaces' field on the JSON introspection (#4129)
+- Allow @typePolicy directive on interfaces and unions (#4131)
+- typePolicy on interface: exclude empty keyfields (#4140)
+- Sort the type names in the list so the code gen is deterministic. (#4138)
+- Use okio.Closable.close instead of dispose on ApolloClient (#4142)
+- Parse the interface's interface field in introspection (#4143)
+- TestBuilders: improve error message when __typename is missing (#4146)
+- Do not bypass websocketReopenWhen {} (#4147)
+- SDLWriter: join implemented interfaces with & instead of space (#4151)
+- Escape "type" in enums and sealed classes (#4144)
+- 🧰  introduce apollo-tooling and apollo-cli (#4153)
+- Fix incorrect content-length in MockServer (#4162)
+- Allow capitalized field names if flattenModels is true (#4154)
+- 🏷️  Allow namespacing and renaming of directives (#4174)
+
+## ❤️ External contributors
+
+Many thanks to @tajchert, @asimonigh, @hrach, @ArjanSM, @yshrsmz, @ephemient, @bubba, @eboudrant and @yogurtearl for contributing to this release! 🙏
+
+
+# Version 3.3.0
+
+_2022-05-04_
+
+This is the first release with [HMPP](https://kotlinlang.org/docs/multiplatform-hierarchy.html) support. If you're using multiplatform, updating to Kotlin 1.6.21 is strongly encouraged. 
+
+This release also brings WebSocket related improvements and other fixes!
+
+## ✨️ [new] Hierarchical MultiPlatform Project (HMPP) (#4033)
+
+When using Apollo Kotlin on a multiplatform project, this release is compatible with the [hierarchical project structure](https://kotlinlang.org/docs/multiplatform-hierarchy.html), which makes it easier to share common code among several targets. Using HMPP in your project also fixes some issues when compiling Kotlin metadata. See https://github.com/apollographql/apollo-kotlin/issues/4019 and https://youtrack.jetbrains.com/issue/KT-51970/ for more details.
+
+**✋ Note**: If you're using multiplatform, we strongly encourage updating to Kotlin 1.6.21. If that is not an option, you might have issues resolving dependencies. More infos in [this issue](https://github.com/apollographql/apollo-kotlin/issues/4095#issuecomment-1123571706).
+
+## ✨️ [new] `WebSocketNetworkTransport.closeConnection` (#4049)
+
+This new method can be used in conjunction with [`reopenWhen`](https://apollographql.github.io/apollo-kotlin/kdoc/apollo-runtime/com.apollographql.apollo3/-apollo-client/-builder/web-socket-reopen-when.html)  to force a reconnection to the server. This could be useful for instance when needing to pass new auth tokens in the headers. If you were using `subscriptionManager.reconnect()` in 2.x, `closeConnection` is a simple way to achieve the same behaviour.
+
+
+## ✨️ [new] `GraphQLWsProtocol.connectionPayload` is now a lambda (#4043)
+
+With `GraphQLWsProtocol`, if you need to pass parameters to the connection payload, previously you would pass them as a static map to the builder. With this change you can now pass a lambda providing them as needed. This facilitates passing fresh auth tokens when connecting.
+
+## ✨️ [new] Add insecure option to download schema (#4021)
+
+You can now use the `--insecure` flag when downloading a schema with [`downloadApolloSchema`](https://www.apollographql.com/docs/kotlin/advanced/plugin-configuration/#downloading-a-schema), to bypass the certificate check, which can be useful if a server is configured with a self-signed certificate for instance.
+
+## 👷‍ All changes
+
+- Add WebSocketNetworkTransport.closeConnection (#4049)
+- Made connectionPayload as suspend function in GraphQLWsProtocol (#4043)
+- ⚡ Ignore unknown websocket messages (#4066)
+- Kotlin 1.6.21 & HMPP (#4033)
+- Provide a Content-Length when using Upload (#4056)
+- ☁️ add HttpRequest.newBuilder(url, method) (#4038)
+- Escape enum constants (#4035)
+- Fix the Moshi adapter used for OperationOutput. Moshi cannot get the type parameters from the typealias
+  automagically (#4022)
+- Add insecure option to download schema (#4021)
+- Try to reduce allocations in MapJsonReader (#3935)
+- 🔒 Deprecate BearerTokenInterceptor and provide tests and docs instead (#4068)
+
+## ❤️ External contributors
+
+Many thanks to @CureleaAndrei and @kdk96 for contributing to this release! 🙏
+
+## ⚙️ Deprecations
+
+- `BearerTokenInterceptor` was provided as an example but is too simple for most use cases, and has therefore been deprecated
+  in this release. [This page](https://www.apollographql.com/docs/kotlin/advanced/authentication) provides more details
+  about authentication.
+- The previous ways of passing parameters to the connection payload with `GraphQLWsProtocol` has been deprecated (see above).
+
 # Version 3.2.2
 
 _2022-04-11_
@@ -222,7 +373,7 @@ It also contains bugfixes around the `@include` directives, MemoryCache and Grap
 
 ## ⚙️ [breaking] Fragment package name and `useSchemaPackageNameForFragments` (#3775)
 
-If you're using `packageNameFromFilePath()`, the package name of generated fragment classes has changed. 
+If you're using `packageNamesFromFilePaths()`, the package name of generated fragment classes has changed. 
 
 Different generated types have different package names:
 

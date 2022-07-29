@@ -39,7 +39,7 @@ public data class TestQuery(
     name = "data",
     type = com.example.inline_fragment_with_include_directive.type.Query.type
   )
-  .selections(selections = TestQuerySelections.root)
+  .selections(selections = TestQuerySelections.__root)
   .build()
 
   public data class Data(
@@ -121,8 +121,9 @@ public data class TestQuery(
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "query TestQuery(${'$'}withDetails: Boolean!, ${'$'}skipHumanDetails: Boolean!) { hero { __typename id ... on Human @include(if: ${'$'}withDetails) @skip(if: ${'$'}skipHumanDetails) { name homePlanet } ... on Droid @include(if: ${'$'}withDetails) { name primaryFunction } ... on Character @include(if: ${'$'}withDetails) { name } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "query TestQuery(${'$'}withDetails: Boolean!, ${'$'}skipHumanDetails: Boolean!) { hero { __typename id ... on Human @include(if: ${'$'}withDetails) @skip(if: ${'$'}skipHumanDetails) { name homePlanet } ... on Droid @include(if: ${'$'}withDetails) { name primaryFunction } ... on Character @include(if: ${'$'}withDetails) { name } } }"
 
     public const val OPERATION_NAME: String = "TestQuery"
   }

@@ -1,6 +1,7 @@
 package com.apollographql.apollo3.compiler.codegen.kotlin.file
 
 
+import com.apollographql.apollo3.compiler.codegen.Identifier.type
 import com.apollographql.apollo3.compiler.codegen.kotlin.CgFile
 import com.apollographql.apollo3.compiler.codegen.kotlin.CgFileBuilder
 import com.apollographql.apollo3.compiler.codegen.kotlin.KotlinContext
@@ -42,8 +43,8 @@ class SchemaBuilder(
     builder.add("listOf(\n")
     builder.indent()
     builder.add(
-        allTypenames.map {
-          CodeBlock.of("%T.type", context.resolver.resolveSchemaType(it))
+        allTypenames.sortedBy { it }.map {
+          CodeBlock.of("%T.$type", context.resolver.resolveSchemaType(it))
         }.joinToString(", ")
     )
     builder.unindent()
@@ -67,7 +68,7 @@ class SchemaBuilder(
 
     builder.addParameter("type", KotlinSymbols.CompiledNamedType)
     builder.returns(KotlinSymbols.List.parameterizedBy(KotlinSymbols.ObjectType))
-    builder.addCode("return %M(all, type)\n", MemberName("com.apollographql.apollo3.api", "possibleTypes"))
+    builder.addCode("return·%M(all, type)\n", MemberName("com.apollographql.apollo3.api", "possibleTypes"))
     return builder.build()
   }
 }

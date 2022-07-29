@@ -4,9 +4,13 @@ import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.CompiledType
 import kotlin.reflect.KProperty
 
+@DslMarker
+annotation class ApolloTestBuilderMarker
+
 /**
  * Base class for test builders that define a DSL to build type safe operation data
  */
+@ApolloTestBuilderMarker
 @ApolloExperimental
 abstract class MapBuilder {
   /**
@@ -14,12 +18,16 @@ abstract class MapBuilder {
    * with fields
    */
   protected val __map = mutableMapOf<String, Any?>()
+  protected val __shouldBeAssignedFields = mutableSetOf<String>()
 
   fun <T> resolve(responseName: String, type: CompiledType, enumValues: List<String>, vararg ctors: () -> Map<String, Any?>): T {
     return if (__map.contains(responseName)) {
       @Suppress("UNCHECKED_CAST")
       __map[responseName] as T
     } else {
+      if (__shouldBeAssignedFields.contains(responseName)) {
+        error("Builder function was called but its result was not assigned to the corresponding field `$responseName` which is certainly a mistake")
+      }
       val resolver = currentTestResolver ?: error("No TestResolver found, wrap with withTestResolver() {}")
       return resolver.resolve(responseName, type, enumValues, ctors)
     }
@@ -51,7 +59,10 @@ class StubbedProperty<T>(private val map: MutableMap<String, Any?>, private val 
 }
 
 @ApolloExperimental
-class MandatoryTypenameProperty {
+class MandatoryTypenameProperty(
+    private val parentTypeName: String,
+    private val possibleTypes: List<String>,
+) {
   private var typename: String? = null
 
   operator fun getValue(
@@ -59,7 +70,7 @@ class MandatoryTypenameProperty {
       property: KProperty<*>,
   ): String {
     check(typename != null) {
-      "__typename is not known at compile-time for this type. Please specify it explicitely"
+      "$parentTypeName: __typename is not known at compile-time for this type. Please specify it explicitly (allowed values: ${possibleTypes.joinToString()})"
     }
     return typename!!
   }

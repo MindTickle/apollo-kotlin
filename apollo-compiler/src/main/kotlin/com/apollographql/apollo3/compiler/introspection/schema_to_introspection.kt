@@ -1,11 +1,37 @@
+@file:Suppress("DEPRECATION")
 package com.apollographql.apollo3.compiler.introspection
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.api.BooleanExpression
-import com.apollographql.apollo3.compiler.introspection.IntrospectionSchema
-import com.apollographql.apollo3.ast.*
+import com.apollographql.apollo3.ast.ConversionException
+import com.apollographql.apollo3.ast.GQLBooleanValue
+import com.apollographql.apollo3.ast.GQLEnumTypeDefinition
+import com.apollographql.apollo3.ast.GQLEnumValue
+import com.apollographql.apollo3.ast.GQLEnumValueDefinition
+import com.apollographql.apollo3.ast.GQLFieldDefinition
+import com.apollographql.apollo3.ast.GQLFloatValue
+import com.apollographql.apollo3.ast.GQLInputObjectTypeDefinition
+import com.apollographql.apollo3.ast.GQLInputValueDefinition
+import com.apollographql.apollo3.ast.GQLIntValue
+import com.apollographql.apollo3.ast.GQLInterfaceTypeDefinition
+import com.apollographql.apollo3.ast.GQLListType
+import com.apollographql.apollo3.ast.GQLListValue
+import com.apollographql.apollo3.ast.GQLNamedType
+import com.apollographql.apollo3.ast.GQLNonNullType
+import com.apollographql.apollo3.ast.GQLNullValue
+import com.apollographql.apollo3.ast.GQLObjectTypeDefinition
+import com.apollographql.apollo3.ast.GQLObjectValue
+import com.apollographql.apollo3.ast.GQLScalarTypeDefinition
+import com.apollographql.apollo3.ast.GQLStringValue
+import com.apollographql.apollo3.ast.GQLType
+import com.apollographql.apollo3.ast.GQLTypeDefinition
+import com.apollographql.apollo3.ast.GQLUnionTypeDefinition
+import com.apollographql.apollo3.ast.GQLValue
+import com.apollographql.apollo3.ast.GQLVariableValue
+import com.apollographql.apollo3.ast.Schema
+import com.apollographql.apollo3.ast.findDeprecationReason
+import com.apollographql.apollo3.ast.toUtf8
 
-@OptIn(ApolloExperimental::class)
 private class IntrospectionSchemaBuilder(private val schema: Schema) {
   private val typeDefinitions = schema.typeDefinitions
 
@@ -33,7 +59,8 @@ private class IntrospectionSchemaBuilder(private val schema: Schema) {
     return IntrospectionSchema.Schema.Type.Object(
         name = name,
         description = description,
-        fields = fields.map { it.toSchemaField() }
+        fields = fields.map { it.toSchemaField() },
+        interfaces = implementsInterfaces.map { IntrospectionSchema.Schema.Type.Interface(kind = "INTERFACE", name = it, description = null, fields = null, possibleTypes = null, interfaces = null) }.ifEmpty { null },
     )
   }
 
@@ -84,6 +111,7 @@ private class IntrospectionSchemaBuilder(private val schema: Schema) {
 
   private fun GQLInterfaceTypeDefinition.toSchemaType(): IntrospectionSchema.Schema.Type.Interface {
     return IntrospectionSchema.Schema.Type.Interface(
+        kind = "INTERFACE",
         name = name,
         description = description,
         fields = fields.map { it.toSchemaField() },
@@ -96,7 +124,13 @@ private class IntrospectionSchemaBuilder(private val schema: Schema) {
                   kind = IntrospectionSchema.Schema.Kind.OBJECT,
                   name = typeDefinition.name
               )
-            }
+            },
+        interfaces = implementsInterfaces.map { interfaceName ->
+          IntrospectionSchema.Schema.TypeRef(
+              kind = IntrospectionSchema.Schema.Kind.INTERFACE,
+              name = interfaceName
+          )
+        }
     )
   }
 
@@ -169,9 +203,13 @@ internal fun GQLTypeDefinition.schemaKind() = when (this) {
   is GQLInterfaceTypeDefinition -> IntrospectionSchema.Schema.Kind.INTERFACE
 }
 
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("toIntrospectionSchema", "com.apollographql.apollo3.ast.introspection"))
 fun Schema.toIntrospectionSchema() = IntrospectionSchemaBuilder(this).toIntrospectionSchema()
 
 
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("toKotlinValue", "com.apollographql.apollo3.ast.introspection"))
 fun GQLValue.toKotlinValue(constContext: Boolean): Any? {
   return when (this) {
     is GQLIntValue -> value

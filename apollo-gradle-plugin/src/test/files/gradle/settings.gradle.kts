@@ -13,12 +13,8 @@ pluginManagement {
 
   resolutionStrategy {
     eachPlugin {
-      if (requested.id.id == "org.jetbrains.kotlin.jvm") {
-        useModule(groovy.util.Eval.x(extra, "x.dep.kotlinPlugin"))
-      }
-
       if (requested.id.id == "com.apollographql.apollo3") {
-        useModule(groovy.util.Eval.x(extra, "x.dep.apollo.plugin"))
+        useModule(groovy.util.Eval.x(extra, "x.dep.apolloPlugin"))
       }
     }
   }
