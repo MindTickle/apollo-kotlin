@@ -8,6 +8,7 @@ import com.apollographql.apollo3.compiler.codegen.kotlin.adapter.from
 import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.makeDataClassFromProperties
 import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddDeprecation
 import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddDescription
+import com.apollographql.apollo3.compiler.codegen.kotlin.helpers.maybeAddRequiresOptIn
 import com.apollographql.apollo3.compiler.decapitalizeFirstLetter
 import com.apollographql.apollo3.compiler.ir.IrAccessor
 import com.apollographql.apollo3.compiler.ir.IrFragmentAccessor
@@ -59,6 +60,7 @@ class ModelBuilder(
           .applyIf(it.override) { addModifiers(KModifier.OVERRIDE) }
           .maybeAddDescription(it.info.description)
           .maybeAddDeprecation(it.info.deprecationReason)
+          .maybeAddRequiresOptIn(context.resolver, it.info.optInFeature)
           .build()
     }
 
@@ -93,7 +95,7 @@ class ModelBuilder(
     val funSpecs = model.accessors.map { accessor ->
       FunSpec.builder(accessor.funName())
           .receiver(context.resolver.resolveModel(model.id))
-          .addCode("return this as? %T\n", context.resolver.resolveModel(accessor.returnedModelId))
+          .addCode("return·this as? %T\n", context.resolver.resolveModel(accessor.returnedModelId))
           .build()
     }
     return TypeSpec.companionObjectBuilder()

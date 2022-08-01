@@ -27,7 +27,7 @@ kotlin {
 
     val commonTest by getting {
       dependencies {
-        implementation(groovy.util.Eval.x(project, "x.dep.kotlin.coroutines"))
+        implementation(groovy.util.Eval.x(project, "x.dep.kotlinCoroutines"))
         implementation(groovy.util.Eval.x(project, "x.dep.kotlinxserializationjson").toString()) {
           because("OperationOutputTest uses it to check the json and we can't use moshi since it's mpp code")
         }
@@ -38,6 +38,12 @@ kotlin {
       dependencies {
         // Add test-junit manually because configureMppTestsDefaults did not do it for us
         implementation(kotlin("test-junit"))
+      }
+    }
+
+    val jvmTest by getting {
+      dependencies {
+        implementation(groovy.util.Eval.x(project, "x.dep.okHttpLogging"))
       }
     }
   }

@@ -5,15 +5,17 @@ import codegen.models.BirthdateQuery
 import codegen.models.EpisodeQuery
 import codegen.models.HeroAndFriendsWithTypenameQuery
 import codegen.models.MergedFieldWithSameShapeQuery
+import codegen.models.StarshipQuery
 import codegen.models.test.AllPlanetsQuery_TestBuilder.Data
 import codegen.models.test.BirthdateQuery_TestBuilder.Data
 import codegen.models.test.EpisodeQuery_TestBuilder.Data
 import codegen.models.test.HeroAndFriendsWithTypenameQuery_TestBuilder.Data
 import codegen.models.test.MergedFieldWithSameShapeQuery_TestBuilder.Data
+import codegen.models.test.StarshipQuery_TestBuilder.Data
 import codegen.models.type.Date
 import codegen.models.type.Episode
+import codegen.models.type.StarshipType
 import com.apollographql.apollo3.api.Adapter
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.CompiledListType
 import com.apollographql.apollo3.api.CompiledNamedType
 import com.apollographql.apollo3.api.CompiledNotNullType
@@ -25,11 +27,11 @@ import com.apollographql.apollo3.api.test.DefaultTestResolver
 import com.apollographql.apollo3.api.test.TestResolver
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.fail
 
-@OptIn(ApolloExperimental::class)
 class TestBuildersTest {
   @Test
   fun allPlanets() {
@@ -61,7 +63,19 @@ class TestBuildersTest {
       HeroAndFriendsWithTypenameQuery.Data {}
       fail("An exception was expected")
     } catch (e: IllegalStateException) {
-      assertEquals("__typename is not known at compile-time for this type. Please specify it explicitely", e.message)
+      assertEquals("Hero: __typename is not known at compile-time for this type. Please specify it explicitly (allowed values: Human, Droid)", e.message)
+    }
+
+    try {
+      HeroAndFriendsWithTypenameQuery.Data {
+        hero = hero {
+          name = "R2-D2"
+          __typename = "Droid"
+        }
+      }
+      fail("An exception was expected")
+    } catch (e: IllegalStateException) {
+      assertEquals("Friend: __typename is not known at compile-time for this type. Please specify it explicitly (allowed values: Human, Droid)", e.message)
     }
   }
 
@@ -164,7 +178,12 @@ class TestBuildersTest {
     val defaultFloat = 7.0
 
     val myTestResolver = object : TestResolver {
-      override fun <T> resolve(responseName: String, compiledType: CompiledType, enumValues: List<String>, ctors: Array<out () -> Map<String, Any?>>?): T {
+      override fun <T> resolve(
+          responseName: String,
+          compiledType: CompiledType,
+          enumValues: List<String>,
+          ctors: Array<out () -> Map<String, Any?>>?,
+      ): T {
         return when (compiledType) {
           is CompiledNotNullType -> resolve(responseName, compiledType.ofType, enumValues, ctors)
           is CompiledListType -> listOf(resolve<Any>(responseName, compiledType.ofType, enumValues, ctors))
@@ -229,5 +248,54 @@ class TestBuildersTest {
     enums.forEach {
       assertIs<Episode>(it)
     }
+  }
+
+  @Test
+  fun enumAsSealedClass() {
+    val data = StarshipQuery.Data {
+      starship = starship {
+        starshipType = StarshipType.STAR_CRUISER.rawValue
+      }
+    }
+    assertEquals(StarshipType.STAR_CRUISER, data.starship?.starshipType)
+  }
+
+  @Test
+  fun enumAsSealedClassResolve() {
+    val data = StarshipQuery.Data {
+    }
+
+    val sealedClass = data.starship?.starshipType
+    assertIs<StarshipType>(sealedClass)
+  }
+
+
+  @Test
+  fun errorIfForgotToAssignField() {
+    val e1 = assertFailsWith<IllegalStateException>() {
+      AllPlanetsQuery.Data {
+        /* allPlanets = */ allPlanets {
+          planets = listOf(
+              planet {
+                name = "Tatoine"
+              }
+          )
+        }
+      }
+    }
+    assertEquals("Builder function was called but its result was not assigned to the corresponding field `allPlanets` which is certainly a mistake", e1.message)
+
+    val e2 = assertFailsWith<IllegalStateException>() {
+      AllPlanetsQuery.Data {
+        allPlanets = allPlanets {
+          /* planets = listOf( */
+          planet {
+            name = "Tatoine"
+          }
+          /* ) */
+        }
+      }
+    }
+    assertEquals("Builder function was called but its result was not assigned to the corresponding field `planets` which is certainly a mistake", e2.message)
   }
 }

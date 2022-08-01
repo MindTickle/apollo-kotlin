@@ -42,7 +42,7 @@ public class TestQuery() : Query<TestQuery.Data> {
     name = "data",
     type = com.example.fragment_spread_with_nested_fields.type.Query.type
   )
-  .selections(selections = TestQuerySelections.root)
+  .selections(selections = TestQuerySelections.__root)
   .build()
 
   public data class Data(
@@ -84,8 +84,9 @@ public class TestQuery() : Query<TestQuery.Data> {
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "query TestQuery { hero { __typename ...HeroDetails } }  fragment HeroDetails on Character { name friendsConnection { totalCount edges { node { name } } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "query TestQuery { hero { __typename ...HeroDetails } }  fragment HeroDetails on Character { name friendsConnection { totalCount edges { node { name } } } }"
 
     public const val OPERATION_NAME: String = "TestQuery"
   }

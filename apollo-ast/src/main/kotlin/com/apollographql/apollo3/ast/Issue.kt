@@ -21,7 +21,7 @@ sealed class Issue(
       message: String,
       sourceLocation: SourceLocation,
       severity: Severity = Severity.ERROR,
-      val details: ValidationDetails = ValidationDetails.Other
+      val details: ValidationDetails = ValidationDetails.Other,
   ) : Issue(message, sourceLocation, severity)
 
   /**
@@ -40,12 +40,22 @@ sealed class Issue(
   class ConditionalFragment(message: String, sourceLocation: SourceLocation) : Issue(message, sourceLocation, Severity.ERROR)
 
   /**
-   * Upper case fields are not supported as Kotlin doesn't allow a property name with the same name as a nested class.
+   * When models are nested, upper case fields are not supported as Kotlin doesn't allow a property name
+   * with the same name as a nested class.
    * If this happens, the easiest solution is to add an alias with a lower case first letter.
+   * If there are a lot of such fields, the Apollo compiler option `flattenModels` can also be used to circumvent this
+   * error at the price of possible suffixes in model names.
    *
    * This error is an Apollo Kotlin specific error
    */
   class UpperCaseField(message: String, sourceLocation: SourceLocation) : Issue(message, sourceLocation, Severity.ERROR)
+
+  /**
+   * Certain enum value names such as `type` are reserved for Apollo.
+   *
+   * This error is an Apollo Kotlin specific error
+   */
+  class ReservedEnumValueName(message: String, sourceLocation: SourceLocation) : Issue(message, sourceLocation, Severity.ERROR)
 
   enum class Severity {
     WARNING,

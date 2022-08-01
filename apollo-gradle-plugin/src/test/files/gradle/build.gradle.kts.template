@@ -4,22 +4,15 @@ buildscript {
   apply("../../../gradle/dependencies.gradle")
 
   val classpathDep = {artifact: String ->
-    val c = artifact.split(".")
-
-    var ret = (extra["dep"] as Map<String, *>)[c[0]]!!
-
-    if (c.size > 1) {
-      ret = (ret as Map<String, *>)[c[1]]!!
-    }
-    ret
+    (extra["dep"] as Map<String, *>)[artifact]!!
   }
 
   repositories {
     maven {
       url = uri("../../../build/localMaven")
     }
-    google()
     mavenCentral()
+    google()
   }
   dependencies {
     // ADD BUILDSCRIPT DEPENDENCIES HERE
@@ -27,14 +20,7 @@ buildscript {
 }
 
 fun kotlinDep(artifact: String): Any {
-  val c = artifact.split(".")
-
-  var ret = (extra["dep"] as Map<String, *>)[c[0]]!!
-
-  if (c.size > 1) {
-    ret = (ret as Map<String, *>)[c[1]]!!
-  }
-  return ret
+  return (extra["dep"] as Map<String, *>)[artifact]!!
 }
 
 // ADD PLUGINS HERE
@@ -45,14 +31,14 @@ repositories {
   maven {
     url = uri("../../../build/localMaven")
   }
-  google() // for aapt2
   mavenCentral()
+  google() // for aapt2
 }
 
 dependencies {
   // ADD DEPENDENCIES HERE
   add("implementation", kotlinDep("jetbrainsAnnotations"))
-  add("implementation", kotlinDep("apollo.api"))
+  add("implementation", kotlinDep("apolloApi"))
 }
 
 // ADD ANDROID CONFIGURATION HERE

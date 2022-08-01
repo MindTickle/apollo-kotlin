@@ -2,11 +2,12 @@ package com.apollographql.apollo3.compiler
 
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_0_0
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_3_1
 import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.Schema
 import com.apollographql.apollo3.ast.toSchema
-import com.apollographql.apollo3.compiler.introspection.toGQLDocument
-import com.apollographql.apollo3.compiler.introspection.toSchema
+import com.apollographql.apollo3.ast.introspection.toGQLDocument
+import com.apollographql.apollo3.ast.introspection.toSchema
 import com.squareup.moshi.JsonClass
 import dev.zacsweers.moshix.sealed.annotations.TypeLabel
 import java.io.File
@@ -30,7 +31,11 @@ const val ADD_TYPENAME_ALWAYS = "always"
 enum class TargetLanguage {
   // The order is important. See [isTargetLanguageVersionAtLeast]
   JAVA,
+
+  @Deprecated("Use KOTLIN_1_5", replaceWith = ReplaceWith("KOTLIN_1_5"))
+  @ApolloDeprecatedSince(v3_3_1)
   KOTLIN_1_4,
+
   KOTLIN_1_5,
 }
 
@@ -183,6 +188,7 @@ class Options(
      */
     val addJvmOverloads: Boolean = false,
     val addTypename: String = defaultAddTypename,
+    val requiresOptInAnnotation: String? = defaultRequiresOptInAnnotation
 ) {
 
   /**
@@ -239,6 +245,7 @@ class Options(
       generateOptionalOperationVariables: Boolean = this.generateOptionalOperationVariables,
       addJvmOverloads: Boolean = this.addJvmOverloads,
       addTypename: String = this.addTypename,
+      requiresOptInAnnotation: String? = this.requiresOptInAnnotation
   ) = Options(
       executableFiles = executableFiles,
       schema = schema,
@@ -273,6 +280,7 @@ class Options(
       generateOptionalOperationVariables = generateOptionalOperationVariables,
       addJvmOverloads = addJvmOverloads,
       addTypename = addTypename,
+      requiresOptInAnnotation = requiresOptInAnnotation,
   )
 
   companion object {
@@ -292,6 +300,7 @@ class Options(
     const val defaultModuleName = "apollographql"
     const val defaultCodegenModels = MODELS_OPERATION_BASED
     const val defaultAddTypename = ADD_TYPENAME_IF_FRAGMENTS
+    const val defaultRequiresOptInAnnotation = "none"
     const val defaultFlattenModels = true
     val defaultTargetLanguage = TargetLanguage.KOTLIN_1_5
     const val defaultGenerateSchema = false

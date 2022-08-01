@@ -1,17 +1,15 @@
 package com.apollographql.apollo3.compiler
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.Schema
 import com.apollographql.apollo3.ast.SourceAwareException
 import com.apollographql.apollo3.compiler.Options.Companion.defaultScalarMapping
-import com.apollographql.apollo3.compiler.introspection.toSchema
+import com.apollographql.apollo3.ast.introspection.toSchema
 import com.google.common.truth.Truth
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
 import java.io.File
 
-@OptIn(ApolloExperimental::class)
 class MetadataTest {
   private val buildDir = File("build/metadata-test/")
   private val rootSchemaFile = File(buildDir, "root/graphql/schema.sdl")

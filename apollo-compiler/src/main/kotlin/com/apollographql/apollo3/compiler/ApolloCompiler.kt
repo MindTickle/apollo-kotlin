@@ -1,7 +1,7 @@
 package com.apollographql.apollo3.compiler
 
 import com.apollographql.apollo3.annotations.ApolloExperimental
-import com.apollographql.apollo3.api.QueryDocumentMinifier
+import com.apollographql.apollo3.ast.QueryDocumentMinifier
 import com.apollographql.apollo3.ast.GQLDefinition
 import com.apollographql.apollo3.ast.GQLDocument
 import com.apollographql.apollo3.ast.GQLFragmentDefinition
@@ -53,6 +53,8 @@ object ApolloCompiler {
     outputDir.mkdirs()
     debugDir?.deleteRecursively()
     debugDir?.mkdirs()
+    testDir.deleteRecursively()
+    testDir.mkdirs()
 
     /**
      * Step 1: parse the documents
@@ -86,7 +88,13 @@ object ApolloCompiler {
     validationResult.issues.checkNoErrors()
 
     if (options.codegenModels == MODELS_RESPONSE_BASED) {
-      findConditionalFragments(definitions).checkNoErrors()
+      checkConditionalFragments(definitions).checkNoErrors()
+    }
+
+    checkApolloReservedEnumValueNames(schema).checkNoErrors()
+
+    if (!options.flattenModels) {
+      checkCapitalizedFields(definitions).checkNoErrors()
     }
 
     val warnings = validationResult.issues.filter {
@@ -226,6 +234,7 @@ object ApolloCompiler {
             scalarMapping = options.scalarMapping,
             nameToClassName = nameToClassName,
             addJvmOverloads = options.addJvmOverloads,
+            requiresOptInAnnotation = options.requiresOptInAnnotation,
         ).write(outputDir = outputDir, testDir = testDir)
       }
     }

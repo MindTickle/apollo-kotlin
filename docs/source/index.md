@@ -67,7 +67,7 @@ Add the plugin to your `build.gradle.kts`:
 
 ```kotlin
 plugins {
-  id("com.apollographql.apollo3").version("3.3.0")
+  id("com.apollographql.apollo3").version("3.3.2")
 }
 ```
 
@@ -75,7 +75,7 @@ Add the runtime dependency:
 
 ```kotlin
 dependencies {
-  implementation("com.apollographql.apollo3:apollo-runtime:3.3.0")
+  implementation("com.apollographql.apollo3:apollo-runtime:3.3.2")
 }
 ```
 
@@ -135,13 +135,13 @@ Build your project. This will generate a `HeroQuery` class that you can use with
 Some platforms have specific requirements:
 
 * Android API level 21+ (`apollo-http-cache` and `apollo-adapters` require enabling [core library desugaring](https://developer.android.com/studio/write/java8-support#library-desugaring) on Android API levels < 26)
-* JDK 8+
+* JDK 8+ (JDK 11+ when using Android Gradle Plugin 7.0+)
 * iOS 13+
 
 For building, it requires:
 
 * Gradle 5.6
-* Kotlin 1.4+ (1.6+ for native)
+* Kotlin 1.5+ (1.6+ for native)
 
 ## Proguard / R8 configuration
 
@@ -162,7 +162,7 @@ Releases are hosted on [Maven Central](https://repo1.maven.org/maven2/com/apollo
 
 ```kotlin
 plugins {
-  id("com.apollographql.apollo3").version("3.3.0")
+  id("com.apollographql.apollo3").version("3.3.2")
 }
 
 repositories {
@@ -170,13 +170,13 @@ repositories {
 }
 
 dependencies {
-  implementation("com.apollographql.apollo3:apollo-runtime:3.3.0")
+  implementation("com.apollographql.apollo3:apollo-runtime:3.3.2")
 
   // optional: if you want to use the normalized cache
-  implementation("com.apollographql.apollo3:apollo-normalized-cache-sqlite:3.3.0")
+  implementation("com.apollographql.apollo3:apollo-normalized-cache-sqlite:3.3.2")
   // optional: if you just want the generated models and parsers and write your own HTTP code/cache code, you can remove apollo-runtime
   // and use apollo-api instead
-  implementation("com.apollographql.apollo3:apollo-api:3.3.0")
+  implementation("com.apollographql.apollo3:apollo-api:3.3.2")
 }
 ```
 
@@ -184,13 +184,29 @@ dependencies {
 
 Latest development changes are available in Sonatype's snapshots repository:
 
-```kotlin title="build.gradle.kts"
+```kotlin
+// build.gradle.kts
 repositories {
   maven {
     url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
   }
+  mavenCentral()
+  // other repositories...
+}
+
+// settings.gradle.kts
+pluginManagement {
+  repositories {
+    maven {
+      url = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
+    }
+    gradlePluginPortal()
+    mavenCentral()
+    // other repositories...
+  }
 }
 ```
+And then use the `3.3.3-SNAPSHOT` version for the plugin and libraries.
 
 ## Contributing
 

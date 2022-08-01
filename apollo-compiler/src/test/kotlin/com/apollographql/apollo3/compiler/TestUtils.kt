@@ -1,13 +1,14 @@
 package com.apollographql.apollo3.compiler
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.Schema
-import com.apollographql.apollo3.compiler.introspection.toSchema
+import com.apollographql.apollo3.ast.introspection.toSchema
+import com.apollographql.apollo3.ast.introspection.toSchemaGQLDocument
+import com.apollographql.apollo3.ast.validateAsSchema
+import com.apollographql.apollo3.ast.validateAsSchemaAndAddApolloDefinition
 import com.google.common.truth.Truth.assertThat
 import okio.Buffer
 import java.io.File
 
-@OptIn(ApolloExperimental::class)
 internal object TestUtils {
   internal fun shouldUpdateTestFixtures(): Boolean {
     if (System.getenv("updateTestFixtures") != null) {
@@ -45,7 +46,7 @@ internal object TestUtils {
    * ./gradlew :apollo-compiler:test -testFilter="fragments_with_type_condition" --tests '*Codegen*'
    */
   fun testFilterMatches(value: String): Boolean {
-    val testFilter = System.getProperty("testFilter") ?: return true
+    val testFilter = System.getenv("testFilter") ?: System.getProperty("testFilter") ?: return true
 
     return Regex(testFilter).containsMatchIn(value)
   }
@@ -70,7 +71,7 @@ internal object TestUtils {
     return listOf("graphqls", "sdl", "json").map { File(dir, "schema.$it") }
         .firstOrNull { it.exists() }
         ?.let {
-          it.toSchema()
+          it.toSchemaGQLDocument().validateAsSchemaAndAddApolloDefinition().valueAssertNoErrors()
         }
   }
 

@@ -2,7 +2,6 @@ package test
 
 import IdCacheKeyGenerator
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.CustomScalarAdapters
 import com.apollographql.apollo3.cache.normalized.ApolloStore
 import com.apollographql.apollo3.cache.normalized.FetchPolicy
@@ -32,7 +31,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.onCompletion
@@ -45,7 +43,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.fail
 
-@OptIn(ApolloExperimental::class)
 class WatcherTest {
   private lateinit var apolloClient: ApolloClient
   private lateinit var store: ApolloStore
@@ -547,7 +544,7 @@ class WatcherTest {
     apolloClient.query(query).fetchPolicy(FetchPolicy.NetworkOnly).execute()
 
     // Prepare next call to be a network error
-    mockServer.enqueue(MockResponse(delayMillis = Long.MAX_VALUE))
+    mockServer.enqueue(MockResponse.Builder().delayMillis(Long.MAX_VALUE).build())
 
     withTimeout(500) {
       // make sure we get the cache only result

@@ -1,15 +1,12 @@
 package com.apollographql.apollo3.compiler
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.GQLDocument
 import com.apollographql.apollo3.ast.GQLSchemaDefinition
 import com.apollographql.apollo3.ast.GQLTypeDefinition
+import com.apollographql.apollo3.ast.Issue
 import com.apollographql.apollo3.ast.Schema
-import com.apollographql.apollo3.ast.apolloDefinitions
-import com.apollographql.apollo3.ast.validateAsSchema
-import com.apollographql.apollo3.compiler.introspection.toGQLDocument
-import com.apollographql.apollo3.compiler.introspection.toSchema
-import com.apollographql.apollo3.compiler.introspection.toSchemaGQLDocument
+import com.apollographql.apollo3.ast.introspection.toSchemaGQLDocument
+import com.apollographql.apollo3.ast.validateAsSchemaAndAddApolloDefinition
 import java.io.File
 
 
@@ -22,7 +19,6 @@ class IncomingOptions(
     val schemaPackageName: String,
 ) {
   companion object {
-    @OptIn(ApolloExperimental::class)
     fun resolveSchema(schemaFiles: Collection<File>, rootFolders: List<String>): Pair<Schema, String> {
       check(schemaFiles.isNotEmpty()) {
         "No schema file found in:\n${rootFolders.joinToString("\n")}"
@@ -49,11 +45,20 @@ class IncomingOptions(
 
       val schemaDefinitions = schemaDocuments.flatMap { it.definitions }
       val schemaDocument = GQLDocument(
-          definitions = schemaDefinitions + apolloDefinitions(),
+          definitions = schemaDefinitions,
           filePath = null
       )
 
-      return schemaDocument.validateAsSchema().valueAssertNoErrors() to mainSchemaDocument.filePath!!
+      /**
+       * TODO: use `validateAsSchema` to not automatically add the apollo definitions
+       */
+      val result = schemaDocument.validateAsSchemaAndAddApolloDefinition()
+
+      result.issues.filter { it.severity == Issue.Severity.WARNING }.forEach {
+        // Using this format, IntelliJ will parse the warning and display it in the 'run' panel
+        println("w: ${it.sourceLocation.pretty()}: Apollo: ${it.message}")
+      }
+      return result.valueAssertNoErrors() to mainSchemaDocument.filePath!!
     }
   }
 }

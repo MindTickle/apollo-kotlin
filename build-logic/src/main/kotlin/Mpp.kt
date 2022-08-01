@@ -15,7 +15,14 @@ fun Project.configureMppDefaults(withJs: Boolean = true, withLinux: Boolean = tr
 
     if (withJs) {
       js(BOTH) {
-        nodejs()
+        nodejs {
+          testTask {
+            useMocha {
+              // Override default 2s timeout
+              timeout = "120s"
+            }
+          }
+        }
       }
     }
 
@@ -119,7 +126,6 @@ fun Project.configureMppTestsDefaults(withJs: Boolean = true) {
     addTestDependencies(withJs)
   }
 }
-
 
 fun KotlinMultiplatformExtension.addTestDependencies(withJs: Boolean) {
   sourceSets.getByName("commonTest") {

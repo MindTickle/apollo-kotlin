@@ -1,6 +1,5 @@
 package com.apollographql.apollo3.compiler.ir
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.BLabel
 import com.apollographql.apollo3.api.BTerm
 import com.apollographql.apollo3.api.BVariable
@@ -43,9 +42,10 @@ import com.apollographql.apollo3.ast.coerceInExecutableContextOrThrow
 import com.apollographql.apollo3.ast.coerceInSchemaContextOrThrow
 import com.apollographql.apollo3.ast.definitionFromScope
 import com.apollographql.apollo3.ast.findDeprecationReason
+import com.apollographql.apollo3.ast.findOptInFeature
 import com.apollographql.apollo3.ast.findNonnull
+import com.apollographql.apollo3.ast.findTargetName
 import com.apollographql.apollo3.ast.inferVariables
-import com.apollographql.apollo3.ast.isApollo
 import com.apollographql.apollo3.ast.isFieldNonNull
 import com.apollographql.apollo3.ast.leafType
 import com.apollographql.apollo3.ast.optionalValue
@@ -59,7 +59,6 @@ import com.apollographql.apollo3.compiler.MODELS_OPERATION_BASED
 import com.apollographql.apollo3.compiler.MODELS_RESPONSE_BASED
 import com.apollographql.apollo3.compiler.ScalarInfo
 
-@OptIn(ApolloExperimental::class)
 internal class IrBuilder(
     private val schema: Schema,
     private val operationDefinitions: List<GQLOperationDefinition>,
@@ -81,7 +80,8 @@ internal class IrBuilder(
 
   private val builder = when (codegenModels) {
     @Suppress("DEPRECATION")
-    MODELS_COMPAT -> OperationBasedModelGroupBuilder(
+    MODELS_COMPAT,
+    -> OperationBasedModelGroupBuilder(
         schema = schema,
         allFragmentDefinitions = allFragmentDefinitions,
         fieldMerger = this,
@@ -183,6 +183,7 @@ internal class IrBuilder(
         implements = implementsInterfaces,
         keyFields = schema.keyFields(name),
         description = description,
+        // XXX: this is not spec-compliant. Directive cannot be on object definitions
         deprecationReason = directives.findDeprecationReason()
     )
   }
@@ -196,6 +197,7 @@ internal class IrBuilder(
         implements = implementsInterfaces,
         keyFields = schema.keyFields(name),
         description = description,
+        // XXX: this is not spec-compliant. Directive cannot be on interfaces
         deprecationReason = directives.findDeprecationReason()
     )
   }
@@ -208,6 +210,7 @@ internal class IrBuilder(
         name = name,
         members = memberTypes.map { it.name },
         description = description,
+        // XXX: this is not spec-compliant. Directive cannot be on union definitions
         deprecationReason = directives.findDeprecationReason()
     )
   }
@@ -217,6 +220,7 @@ internal class IrBuilder(
         name = name,
         kotlinName = scalarMapping[name]?.targetName,
         description = description,
+        // XXX: this is not spec-compliant. Directive cannot be on scalar definitions
         deprecationReason = directives.findDeprecationReason()
     )
   }
@@ -225,6 +229,7 @@ internal class IrBuilder(
     return IrInputObject(
         name = name,
         description = description,
+        // XXX: this is not spec-compliant. Directive cannot be on inpout objects definitions
         deprecationReason = directives.findDeprecationReason(),
         fields = inputFields.map { it.toIrInputField() }
     )
@@ -248,6 +253,7 @@ internal class IrBuilder(
         name = name,
         description = description,
         deprecationReason = directives.findDeprecationReason(),
+        optInFeature = directives.findOptInFeature(schema),
         type = irType,
         defaultValue = coercedDefaultValue?.toIrValue(),
     )
@@ -264,8 +270,10 @@ internal class IrBuilder(
   private fun GQLEnumValueDefinition.toIr(): IrEnum.Value {
     return IrEnum.Value(
         name = name,
+        targetName = directives.findTargetName(schema) ?: name,
         description = description,
-        deprecationReason = directives.findDeprecationReason()
+        deprecationReason = directives.findDeprecationReason(),
+        optInFeature = directives.findOptInFeature(schema),
     )
   }
 
@@ -274,7 +282,7 @@ internal class IrBuilder(
    */
   private fun GQLNode.formatToString(): String {
     return transform {
-      if (it is GQLDirective && it.isApollo()) {
+      if (it is GQLDirective && schema.shouldStrip(it.name)) {
         TransformResult.Delete
       } else {
         TransformResult.Continue
@@ -404,7 +412,7 @@ internal class IrBuilder(
         // We default to add the [Optional] wrapper, but this can be overridden by the user globally or individually
         // with the @optional directive.
 
-        val makeOptional = directives.optionalValue() ?: generateOptionalOperationVariables
+        val makeOptional = directives.optionalValue(schema) ?: generateOptionalOperationVariables
         if (makeOptional) {
           irType = irType.makeOptional()
         }
@@ -462,6 +470,7 @@ internal class IrBuilder(
       val description: String?,
       val type: GQLType,
       val deprecationReason: String?,
+      val optInFeature: String?,
       val forceNonNull: Boolean,
       val forceOptional: Boolean,
 
@@ -484,7 +493,7 @@ internal class IrBuilder(
       check(fieldDefinition != null) {
         "cannot find field definition for field '${gqlField.responseName()}' of type '${typeDefinition.name}'"
       }
-      val forceNonNull = gqlField.directives.findNonnull() || typeDefinition.isFieldNonNull(gqlField.name)
+      val forceNonNull = gqlField.directives.findNonnull(schema) || typeDefinition.isFieldNonNull(gqlField.name, schema)
 
       CollectedField(
           name = gqlField.name,
@@ -494,8 +503,9 @@ internal class IrBuilder(
           type = fieldDefinition.type,
           description = fieldDefinition.description,
           deprecationReason = fieldDefinition.directives.findDeprecationReason(),
+          optInFeature = fieldDefinition.directives.findOptInFeature(schema),
           forceNonNull = forceNonNull,
-          forceOptional = gqlField.directives.optionalValue() == true,
+          forceOptional = gqlField.directives.optionalValue(schema) == true,
           parentType = fieldWithParent.parentType,
       )
     }.groupBy {
@@ -547,12 +557,20 @@ internal class IrBuilder(
           "Deprecated in: '${parents.joinToString(", ")}'"
         }
       }
-
+      val optInFeature = fieldsWithSameResponseName.associateBy { it.optInFeature }.values.let { experimentalCanditates ->
+        if (experimentalCanditates.size == 1) {
+          experimentalCanditates.single().optInFeature
+        } else {
+          val parents = experimentalCanditates.filter { it.optInFeature != null }.map { it.parentType }
+          "Experimental in: '${parents.joinToString(", ")}'"
+        }
+      }
 
       val info = IrFieldInfo(
           responseName = first.alias ?: first.name,
           description = description,
           deprecationReason = deprecationReason,
+          optInFeature = optInFeature,
           type = irType,
           gqlType = first.type,
       )

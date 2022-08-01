@@ -16,8 +16,8 @@ project.buildscript.repositories {
 
 project.buildscript.dependencies.apply {
   add("classpath", groovy.util.Eval.x(project, "x.dep.kotlinPlugin"))
-  add("classpath", groovy.util.Eval.x(project, "x.dep.apollo.plugin"))
-  add("classpath", groovy.util.Eval.x(project, "x.dep.android.plugin"))
+  add("classpath", groovy.util.Eval.x(project, "x.dep.apolloPlugin"))
+  add("classpath", groovy.util.Eval.x(project, "x.dep.androidPlugin"))
 }
 
 allprojects {
@@ -26,7 +26,7 @@ allprojects {
       // Some projects are in submodules, use the rootDir
       url = uri(File(project.rootDir, "$apolloDepth/build/localMaven").absolutePath)
     }
-    google()
     mavenCentral()
+    google()
   }
 }

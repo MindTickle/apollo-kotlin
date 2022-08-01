@@ -1,13 +1,12 @@
 package com.apollographql.apollo3.compiler
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.GQLDocument
 import com.apollographql.apollo3.ast.GQLFragmentDefinition
 import com.apollographql.apollo3.ast.GQLOperationDefinition
 import com.apollographql.apollo3.ast.toExecutableDefinitions
 import com.apollographql.apollo3.ast.toUtf8
 import com.apollographql.apollo3.ast.transformation.addRequiredFields
-import com.apollographql.apollo3.compiler.introspection.toSchema
+import com.apollographql.apollo3.ast.introspection.toSchema
 import com.google.common.truth.Truth.assertThat
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
@@ -19,7 +18,6 @@ import java.io.File
 
 @Suppress("UNUSED_PARAMETER")
 @RunWith(TestParameterInjector::class)
-@OptIn(ApolloExperimental::class)
 class TypenameTest(
     @TestParameter(valuesProvider = GraphQLFileValuesProvider::class) private val graphQLFile: File,
     @TestParameter("always", "ifFragments", "ifAbstract", "ifPolymorphic") private val addTypename: String,

@@ -41,7 +41,7 @@ public data class TestQuery(
     name = "data",
     type = com.example.input_object_type.type.Mutation.type
   )
-  .selections(selections = TestQuerySelections.root)
+  .selections(selections = TestQuerySelections.__root)
   .build()
 
   public data class Data(
@@ -74,8 +74,9 @@ public data class TestQuery(
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "mutation TestQuery(${'$'}ep: Episode!, ${'$'}review: ReviewInput!) { createReview(episode: ${'$'}ep, review: ${'$'}review) { stars commentary } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "mutation TestQuery(${'$'}ep: Episode!, ${'$'}review: ReviewInput!) { createReview(episode: ${'$'}ep, review: ${'$'}review) { stars commentary } }"
 
     public const val OPERATION_NAME: String = "TestQuery"
   }

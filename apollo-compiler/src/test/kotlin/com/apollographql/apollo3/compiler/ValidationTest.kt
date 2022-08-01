@@ -1,11 +1,10 @@
 package com.apollographql.apollo3.compiler
 
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.Issue
-import com.apollographql.apollo3.ast.GQLResult
 import com.apollographql.apollo3.ast.parseAsGQLDocument
 import com.apollographql.apollo3.ast.validateAsExecutable
 import com.apollographql.apollo3.ast.validateAsSchema
+import com.apollographql.apollo3.ast.validateAsSchemaAndAddApolloDefinition
 import com.apollographql.apollo3.compiler.TestUtils.checkExpected
 import com.apollographql.apollo3.compiler.TestUtils.testParametersForGraphQLFilesIn
 import okio.buffer
@@ -17,7 +16,6 @@ import java.io.File
 
 @Suppress("UNUSED_PARAMETER")
 @RunWith(Parameterized::class)
-@OptIn(ApolloExperimental::class)
 class ValidationTest(name: String, private val graphQLFile: File) {
   private val separator = "\n------------\n"
 
@@ -34,13 +32,22 @@ class ValidationTest(name: String, private val graphQLFile: File) {
       if (parseResult.issues.isNotEmpty()) {
         parseResult.issues
       } else {
-        parseResult.valueAssertNoErrors().validateAsExecutable(schema!!).issues
+        parseResult.valueAssertNoErrors().validateAsExecutable(schema = schema!!).issues + if (graphQLFile.name == "capitalized_fields_disallowed.graphql") {
+          checkCapitalizedFields(parseResult.value!!.definitions)
+        } else {
+          emptyList()
+        }
       }
     } else {
       if (parseResult.issues.isNotEmpty()) {
         parseResult.issues
       } else {
-        parseResult.valueAssertNoErrors().validateAsSchema().issues
+        val schemaResult = parseResult.valueAssertNoErrors().validateAsSchemaAndAddApolloDefinition()
+        schemaResult.issues + if (graphQLFile.name == "reserved-enum-value-names.graphql") {
+          checkApolloReservedEnumValueNames(schemaResult.value!!)
+        } else {
+          emptyList()
+        }
       }
     }
     issues.serialize()

@@ -7,12 +7,50 @@ If you want to discuss the project or just say hi, stop by [the kotlinlang slack
 
 ## Project Setup
 
-This project is developed using IntelliJ IDEA. Android Studio might work too, but we find out the experience for
-multiplatform code to be better with IntelliJ IDEA. To build multiplatform projects, you need MacOS and the Xcode
-developer tools.
+You will need:
+* Java11+
+* A recent version of IntelliJ IDEA community. Android Studio might work too, but we find out the experience for
+multiplatform code to be better with IntelliJ IDEA.
+* MacOS and the Xcode developer tools for iOS/MacOS targets.
 
-To build the integration tests, use the `tests` build. It's a composite build that includes the main build so that it's
-possible to use `apollo-gradle-plugin` with dependency substitution.
+We recommend opening the `tests` folder in IntelliJ. It's a composite build that includes the main build and integration-tests
+so it's easy to add GraphQL and test the codegen end-to-end. If you only want to do small changes, you can open the root
+project to save some sync times.
+
+## Using a local version of Apollo Kotlin
+
+To test your changes in a local repo, you can publish a local version of `apollo-gradle-plugin` and other dependencies with:
+
+```
+./gradlew publishToMavenLocal
+```
+
+All dependencies will be published to your `~/.m2/repository` folder. You can then use them in other projects by adding `mavenLocal()`
+to your repositories in your build scripts:
+
+```kotlin
+// build.gradle.kts
+repositories {
+  mavenLocal()
+  mavenCentral()
+  // other repositories...
+}
+
+// settings.gradle.kts
+pluginManagement {
+    repositories {
+        mavenLocal()
+        gradlePluginPortal()
+        mavenCentral()
+        // other repositories...
+    }
+}
+
+```
+
+This will require that you call `./gradlew publishToMavenLocal` after every change you make in Apollo Kotlin but it's the 
+easiest way to try your changes. For tighter integration, you can also use Apollo Kotlin as an [included build](https://docs.gradle.org/current/userguide/composite_builds.html)
+like it is done for the integration-tests.
 
 ## DOs and DON'Ts
 
@@ -48,7 +86,7 @@ Builders/Constructors
 * For interfaces that are meant to be extended by the user but that also have a builtin implementation, you can use the `Default${Interface}` naming pattern (see DefaultUpload)
 * If there are several builtin implementations, use a descriptive name (like AppSyncWsProtocol, ...)
 * Avoid top level constructor functions like `fun CoroutineScope(){}` because they are awkward to use in Java
-* For expect/actual, it's sometime convenient to expose an interface even if it's not intended to be used by callers like `MockerServerInterface`. In that case, it's ok to use `FooInterface` for the interface and `Foo()` for the implementation to avoid having "DefaultFoo" everywhere when there's only one "Foo". 
+* For expect/actual, it's sometime convenient to expose an interface even if it's not intended to be subclassed by callers like `MockServerInterface`. In that case, it's ok to use `FooInterface` for the interface and `Foo()` for the implementation to avoid having "DefaultFoo" everywhere when there's only one "Foo". 
 
 Java interop
 * In general, it's best to avoid extension functions when possible because they are awkward to use in Java.
@@ -156,8 +194,6 @@ following events:
     - All apiCheck
 - `tests-integration`
     - All integration tests (except Java 9+ ones)
-- `tests-java9`
-    - Java 9+ specific tests
 
 ### On pushes to `main` branch
 

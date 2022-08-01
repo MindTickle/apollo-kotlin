@@ -4,8 +4,12 @@ package com.apollographql.apollo3.exception
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_0_0
 import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_1_1
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince.Version.v3_3_1
+import com.apollographql.apollo3.annotations.ApolloExperimental
+import com.apollographql.apollo3.annotations.ApolloInternal
 import com.apollographql.apollo3.api.http.HttpHeader
 import okio.BufferedSource
+import kotlin.jvm.JvmOverloads
 
 /**
  * The base class for all exceptions
@@ -27,6 +31,20 @@ class ApolloNetworkException(
     message: String? = null,
     val platformCause: Any? = null,
 ) : ApolloException(message = message, cause = platformCause as? Throwable)
+
+/**
+ * The server could not process a subscription and sent an error.
+ *
+ * This typically happens if there is a validation error. This is a terminal event.
+ *
+ * @param operationName the name of the subscription that triggered the error.
+ * @param payload the payload returned by the server.
+ */
+class SubscriptionOperationException(
+    operationName: String,
+    val payload: Any? = null,
+) : ApolloException(message = "Operation error $operationName")
+
 
 /**
  * A WebSocket connection could not be established: e.g., expired token
@@ -81,14 +99,35 @@ class ApolloParseException(message: String? = null, cause: Throwable? = null) : 
  * An object/field was missing in the cache
  * If [fieldName] is null, it means a reference to an object could not be resolved
  */
-class CacheMissException(val key: String, val fieldName: String? = null) : ApolloException(message = message(key, fieldName)) {
+
+class CacheMissException @ApolloInternal constructor(
+    val key: String,
+    val fieldName: String? = null,
+    stale: Boolean = false,
+) : ApolloException(message = message(key, fieldName, stale)) {
+
+  @ApolloExperimental
+  val stale: Boolean = stale
+
+  constructor(key: String, fieldName: String?): this(key, fieldName, false)
+
   companion object {
-    fun message(key: String?, fieldName: String?): String {
+    internal fun message(key: String?, fieldName: String?, stale: Boolean): String {
       return if (fieldName == null) {
         "Object '$key' not found"
       } else {
-        "Object '$key' has no field named '$fieldName'"
+        if (stale) {
+          "Field '$fieldName' on object '$key' is stale"
+        } else {
+          "Object '$key' has no field named '$fieldName'"
+        }
       }
+    }
+
+    @ApolloDeprecatedSince(v3_3_1)
+    @Deprecated("Use CacheMissException.message instead")
+    fun message(key: String?, fieldName: String?): String {
+      return message(key, fieldName, false)
     }
   }
 }

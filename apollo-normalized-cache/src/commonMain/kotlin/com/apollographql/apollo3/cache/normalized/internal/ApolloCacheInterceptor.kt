@@ -1,7 +1,6 @@
 package com.apollographql.apollo3.cache.normalized.internal
 
 import com.apollographql.apollo3.ConcurrencyInfo
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.CustomScalarAdapters
@@ -11,6 +10,8 @@ import com.apollographql.apollo3.api.Query
 import com.apollographql.apollo3.api.Subscription
 import com.apollographql.apollo3.cache.normalized.ApolloStore
 import com.apollographql.apollo3.cache.normalized.CacheInfo
+import com.apollographql.apollo3.cache.normalized.api.ApolloCacheHeaders
+import com.apollographql.apollo3.cache.normalized.api.CacheHeaders
 import com.apollographql.apollo3.cache.normalized.cacheHeaders
 import com.apollographql.apollo3.cache.normalized.cacheInfo
 import com.apollographql.apollo3.cache.normalized.doNotStore
@@ -18,6 +19,7 @@ import com.apollographql.apollo3.cache.normalized.emitCacheMisses
 import com.apollographql.apollo3.cache.normalized.fetchFromCache
 import com.apollographql.apollo3.cache.normalized.optimisticData
 import com.apollographql.apollo3.cache.normalized.storePartialResponses
+import com.apollographql.apollo3.cache.normalized.storeReceiveDate
 import com.apollographql.apollo3.cache.normalized.writeToCacheAsynchronously
 import com.apollographql.apollo3.exception.ApolloException
 import com.apollographql.apollo3.exception.CacheMissException
@@ -27,7 +29,6 @@ import com.apollographql.apollo3.interceptor.ApolloInterceptorChain
 import com.apollographql.apollo3.mpp.currentTimeMillis
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -44,7 +45,6 @@ internal class ApolloCacheInterceptor(
     // ensureNeverFrozen(store)
   }
 
-  @OptIn(ApolloExperimental::class)
   private suspend fun <D : Operation.Data> maybeAsync(request: ApolloRequest<D>, block: suspend () -> Unit) {
     if (request.writeToCacheAsynchronously) {
       val scope = request.executionContext[ConcurrencyInfo]!!.coroutineScope
@@ -78,7 +78,11 @@ internal class ApolloCacheInterceptor(
 
     maybeAsync(request) {
       val cacheKeys = if (response.data != null) {
-        store.writeOperation(request.operation, response.data!!, customScalarAdapters, request.cacheHeaders, publish = false)
+        var cacheHeaders = request.cacheHeaders + response.cacheHeaders
+        if (request.storeReceiveDate) {
+          cacheHeaders += nowDateCacheHeaders()
+        }
+        store.writeOperation(request.operation, response.data!!, customScalarAdapters, cacheHeaders, publish = false)
       } else {
         emptySet()
       }
@@ -268,6 +272,12 @@ internal class ApolloCacheInterceptor(
                   .networkEndMillis(currentTimeMillis())
                   .build()
           ).build()
+    }
+  }
+
+  companion object {
+    private fun nowDateCacheHeaders(): CacheHeaders {
+      return CacheHeaders.Builder().addHeader(ApolloCacheHeaders.DATE, (currentTimeMillis() /1000).toString()).build()
     }
   }
 }

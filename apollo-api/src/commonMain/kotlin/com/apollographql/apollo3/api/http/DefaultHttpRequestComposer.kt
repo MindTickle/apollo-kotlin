@@ -1,5 +1,6 @@
 package com.apollographql.apollo3.api.http
 
+import com.apollographql.apollo3.annotations.ApolloInternal
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.CustomScalarAdapters
 import com.apollographql.apollo3.api.Operation
@@ -65,6 +66,16 @@ class DefaultHttpRequestComposer(
 
   companion object {
     const val HEADER_APOLLO_OPERATION_ID = "X-APOLLO-OPERATION-ID"
+
+    // Note: in addition to this being a generally useful header to send, Apollo
+    // Server's CSRF prevention feature (introduced in AS3.7 and intended to be
+    // the default in AS4) includes this in the set of headers that indicate
+    // that a GET request couldn't have been a non-preflighted simple request
+    // and thus is safe to execute. If this project is changed to not always
+    // send this header, its GET requests may be blocked by Apollo Server with
+    // CSRF prevention enabled. See
+    // https://www.apollographql.com/docs/apollo-server/security/cors/#preventing-cross-site-request-forgery-csrf
+    // for details.
     const val HEADER_APOLLO_OPERATION_NAME = "X-APOLLO-OPERATION-NAME"
 
     private fun <D : Operation.Data> buildGetUrl(
@@ -212,71 +223,9 @@ class DefaultHttpRequestComposer(
           }
         }
       } else {
-        return object : HttpBody {
-          private val boundary = uuid4().toString()
-
-          override val contentType = "multipart/form-data; boundary=$boundary"
-
-          override val contentLength by lazy {
-            val countingSink = CountingSink(blackholeSink())
-            val bufferedCountingSink = countingSink.buffer()
-            bufferedCountingSink.writeBoundaries(writeUploadContents = false)
-            bufferedCountingSink.flush()
-            val result = countingSink.bytesWritten + uploads.values.sumOf { it.contentLength }
-            result
-          }
-
-          override fun writeTo(bufferedSink: BufferedSink) {
-            bufferedSink.writeBoundaries(writeUploadContents = true)
-          }
-
-          private fun BufferedSink.writeBoundaries(writeUploadContents: Boolean) {
-            writeUtf8("--$boundary\r\n")
-            writeUtf8("Content-Disposition: form-data; name=\"operations\"\r\n")
-            writeUtf8("Content-Type: application/json\r\n")
-            writeUtf8("Content-Length: ${operationByteString.size}\r\n")
-            writeUtf8("\r\n")
-            write(operationByteString)
-
-            val uploadsMap = buildUploadMap(uploads)
-            writeUtf8("\r\n--$boundary\r\n")
-            writeUtf8("Content-Disposition: form-data; name=\"map\"\r\n")
-            writeUtf8("Content-Type: application/json\r\n")
-            writeUtf8("Content-Length: ${uploadsMap.size}\r\n")
-            writeUtf8("\r\n")
-            write(uploadsMap)
-
-            uploads.values.forEachIndexed { index, upload ->
-              writeUtf8("\r\n--$boundary\r\n")
-              writeUtf8("Content-Disposition: form-data; name=\"$index\"")
-              if (upload.fileName != null) {
-                writeUtf8("; filename=\"${upload.fileName}\"")
-              }
-              writeUtf8("\r\n")
-              writeUtf8("Content-Type: ${upload.contentType}\r\n")
-              val contentLength = upload.contentLength
-              if (contentLength != -1L) {
-                writeUtf8("Content-Length: $contentLength\r\n")
-              }
-              writeUtf8("\r\n")
-              if (writeUploadContents) {
-                upload.writeTo(this)
-              }
-            }
-            writeUtf8("\r\n--$boundary--\r\n")
-          }
-        }
+        return UploadsHttpBody(uploads, operationByteString)
       }
     }
-
-    private fun buildUploadMap(uploads: Map<String, Upload>) = buildJsonByteString(indent = null) {
-      this.writeAny(
-          uploads.entries.mapIndexed { index, entry ->
-            index.toString() to listOf(entry.key)
-          }.toMap(),
-      )
-    }
-
 
     fun <D : Operation.Data> buildParamsMap(
         operation: Operation<D>,
@@ -304,6 +253,73 @@ class DefaultHttpRequestComposer(
         composePostParams(this, operation, customScalarAdapters, sendApqExtensions, query)
       } as Map<String, Any?>
     }
+  }
+}
+
+@ApolloInternal
+class UploadsHttpBody(
+    private val uploads: Map<String, Upload>,
+    private val operationByteString: ByteString,
+) : HttpBody {
+  private val boundary = uuid4().toString()
+
+  override val contentType = "multipart/form-data; boundary=$boundary"
+
+  override val contentLength by lazy {
+    val countingSink = CountingSink(blackholeSink())
+    val bufferedCountingSink = countingSink.buffer()
+    bufferedCountingSink.writeBoundaries(writeUploadContents = false)
+    bufferedCountingSink.flush()
+    val result = countingSink.bytesWritten + uploads.values.sumOf { it.contentLength }
+    result
+  }
+
+  override fun writeTo(bufferedSink: BufferedSink) {
+    bufferedSink.writeBoundaries(writeUploadContents = true)
+  }
+
+  private fun buildUploadMap(uploads: Map<String, Upload>) = buildJsonByteString(indent = null) {
+    this.writeAny(
+        uploads.entries.mapIndexed { index, entry ->
+          index.toString() to listOf(entry.key)
+        }.toMap(),
+    )
+  }
+
+  private fun BufferedSink.writeBoundaries(writeUploadContents: Boolean) {
+    writeUtf8("--$boundary\r\n")
+    writeUtf8("Content-Disposition: form-data; name=\"operations\"\r\n")
+    writeUtf8("Content-Type: application/json\r\n")
+    writeUtf8("Content-Length: ${operationByteString.size}\r\n")
+    writeUtf8("\r\n")
+    write(operationByteString)
+
+    val uploadsMap = buildUploadMap(uploads)
+    writeUtf8("\r\n--$boundary\r\n")
+    writeUtf8("Content-Disposition: form-data; name=\"map\"\r\n")
+    writeUtf8("Content-Type: application/json\r\n")
+    writeUtf8("Content-Length: ${uploadsMap.size}\r\n")
+    writeUtf8("\r\n")
+    write(uploadsMap)
+
+    uploads.values.forEachIndexed { index, upload ->
+      writeUtf8("\r\n--$boundary\r\n")
+      writeUtf8("Content-Disposition: form-data; name=\"$index\"")
+      if (upload.fileName != null) {
+        writeUtf8("; filename=\"${upload.fileName}\"")
+      }
+      writeUtf8("\r\n")
+      writeUtf8("Content-Type: ${upload.contentType}\r\n")
+      val contentLength = upload.contentLength
+      if (contentLength != -1L) {
+        writeUtf8("Content-Length: $contentLength\r\n")
+      }
+      writeUtf8("\r\n")
+      if (writeUploadContents) {
+        upload.writeTo(this)
+      }
+    }
+    writeUtf8("\r\n--$boundary--\r\n")
   }
 }
 

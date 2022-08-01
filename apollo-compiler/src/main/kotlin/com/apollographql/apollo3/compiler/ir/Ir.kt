@@ -38,13 +38,15 @@ data class IrEnum(
     override val name: String,
     val description: String?,
     val values: List<Value>,
-): IrSchemaType {
+) : IrSchemaType {
   val type = IrEnumType(name)
 
   data class Value(
       val name: String,
+      val targetName: String,
       val description: String?,
       val deprecationReason: String?,
+      val optInFeature: String?,
   )
 }
 
@@ -60,6 +62,7 @@ data class IrInputField(
     val name: String,
     val description: String?,
     val deprecationReason: String?,
+    val optInFeature: String?,
     val type: IrType,
     val defaultValue: IrValue?,
 )
@@ -126,6 +129,7 @@ data class IrFieldInfo(
      * from the fieldDefinition directives
      */
     val deprecationReason: String?,
+    val optInFeature: String?,
 )
 
 sealed class IrAccessor {
@@ -178,7 +182,7 @@ data class IrProperty(
     val info: IrFieldInfo,
     val override: Boolean,
     val condition: BooleanExpression<BTerm>,
-    val requiresBuffering: Boolean
+    val requiresBuffering: Boolean,
 ) {
   /**
    * synthetic properties are special as we need to rewind the reader before reading them
@@ -209,7 +213,7 @@ data class IrInputObject(
     val description: String?,
     val deprecationReason: String?,
     val fields: List<IrInputField>,
-): IrSchemaType
+) : IrSchemaType
 
 data class IrObject(
     override val name: String,
@@ -217,7 +221,7 @@ data class IrObject(
     val keyFields: Set<String>,
     val description: String?,
     val deprecationReason: String?,
-): IrSchemaType
+) : IrSchemaType
 
 data class IrInterface(
     override val name: String,
@@ -225,21 +229,21 @@ data class IrInterface(
     val keyFields: Set<String>,
     val description: String?,
     val deprecationReason: String?,
-): IrSchemaType
+) : IrSchemaType
 
 data class IrUnion(
     override val name: String,
     val members: List<String>,
     val description: String?,
     val deprecationReason: String?,
-): IrSchemaType
+) : IrSchemaType
 
 data class IrCustomScalar(
     override val name: String,
     val kotlinName: String?, // might be null if no user mapping is provided
     val description: String?,
     val deprecationReason: String?,
-): IrSchemaType {
+) : IrSchemaType {
   val type = IrScalarType(name)
 }
 

@@ -1,7 +1,6 @@
 package test
 
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.ApolloRequest
 import com.apollographql.apollo3.api.ApolloResponse
 import com.apollographql.apollo3.api.Error
@@ -17,8 +16,8 @@ import com.apollographql.apollo3.exception.ApolloException
 import com.apollographql.apollo3.exception.ApolloHttpException
 import com.apollographql.apollo3.exception.ApolloNetworkException
 import com.apollographql.apollo3.exception.CacheMissException
-import com.apollographql.apollo3.mockserver.MockResponse
 import com.apollographql.apollo3.mockserver.MockServer
+import com.apollographql.apollo3.mockserver.enqueue
 import com.apollographql.apollo3.mockserver.enqueueMultipart
 import com.apollographql.apollo3.network.NetworkTransport
 import com.apollographql.apollo3.testing.runTest
@@ -39,7 +38,6 @@ import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 
-@OptIn(ApolloExperimental::class)
 class DeferNormalizedCacheTest {
   private lateinit var mockServer: MockServer
   private lateinit var apolloClient: ApolloClient
@@ -195,7 +193,7 @@ class DeferNormalizedCacheTest {
     )
     assertEquals(networkExpected, networkActual)
 
-    mockServer.enqueue(MockResponse(500))
+    mockServer.enqueue(statusCode = 500)
     // Network will fail, so we get the cached version
     val cacheActual = apolloClient.query(WithFragmentSpreadsQuery()).execute().dataAssertNoErrors
 
@@ -325,7 +323,7 @@ class DeferNormalizedCacheTest {
     )
     assertResponseListEquals(networkExpected, networkActual)
 
-    mockServer.enqueue(MockResponse(500))
+    mockServer.enqueue(statusCode = 500)
     // Because of the error the cache is missing some fields, so we get a cache miss, and fallback to the network (which also fails)
     val exception = assertFailsWith<ApolloCompositeException> {
       apolloClient.query(WithFragmentSpreadsQuery()).execute().dataAssertNoErrors

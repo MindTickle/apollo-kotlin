@@ -1,7 +1,6 @@
 package test
 
 import com.apollographql.apollo3.ApolloClient
-import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.api.composeJsonResponse
 import com.apollographql.apollo3.api.http.valueOf
 import com.apollographql.apollo3.api.json.buildJsonString
@@ -16,7 +15,6 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 
-@OptIn(ApolloExperimental::class)
 class HTTPHeadersTest {
   private lateinit var mockServer: MockServer
   private lateinit var apolloClient: ApolloClient
@@ -57,14 +55,11 @@ class HTTPHeadersTest {
     }
 
     mockServer.enqueue(
-        MockResponse(
-            statusCode = 200,
-            body = json,
-            headers = mapOf(
-                "Header1" to "Value1",
-                "Header2" to "Value2"
-            )
-        )
+        MockResponse.Builder()
+            .body(json)
+            .addHeader("Header1", "Value1")
+            .addHeader("Header2", "Value2")
+            .build()
     )
 
     val response = apolloClient.query(query).execute()

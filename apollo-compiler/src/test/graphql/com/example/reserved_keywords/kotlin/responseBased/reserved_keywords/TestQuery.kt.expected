@@ -42,7 +42,7 @@ public class TestQuery() : Query<TestQuery.Data> {
     name = "data",
     type = com.example.reserved_keywords.type.Query.type
   )
-  .selections(selections = TestQuerySelections.root)
+  .selections(selections = TestQuerySelections.__root)
   .build()
 
   public data class Data(
@@ -104,8 +104,9 @@ public class TestQuery() : Query<TestQuery.Data> {
      *   }
      * }
      */
-    public const val OPERATION_DOCUMENT: String =
-        "query TestQuery { yield: hero { while: id it: name } objects: search(text: \"abc\") { __typename ... on Character { name } } }"
+    public val OPERATION_DOCUMENT: String
+      get() =
+          "query TestQuery { yield: hero { while: id it: name } objects: search(text: \"abc\") { __typename ... on Character { name } } }"
 
     public const val OPERATION_NAME: String = "TestQuery"
   }

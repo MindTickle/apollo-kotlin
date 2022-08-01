@@ -126,6 +126,7 @@ private class FieldNodeBuilder(
         description = null,
         type = IrNonNullType(IrModelType(MODEL_UNKNOWN)),
         deprecationReason = null,
+        optInFeature = null,
         gqlType = GQLNonNullType(type = GQLNamedType(name = rawTypeName)),
     )
 
@@ -149,6 +150,7 @@ private class FieldNodeBuilder(
           description = null,
           type = IrModelType(MODEL_UNKNOWN),
           deprecationReason = null,
+          optInFeature = null,
           gqlType = GQLNonNullType(type = fragment.typeCondition),
       )
 
@@ -173,6 +175,7 @@ private class FieldNodeBuilder(
         description = null,
         type = IrNonNullType(IrModelType(MODEL_UNKNOWN)),
         deprecationReason = null,
+        optInFeature = null,
         gqlType = GQLNonNullType(type = fragment.typeCondition),
     )
 

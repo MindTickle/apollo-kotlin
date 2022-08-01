@@ -1,5 +1,7 @@
+@file:Suppress("DEPRECATION")
 package com.apollographql.apollo3.compiler.introspection
 
+import com.apollographql.apollo3.annotations.ApolloDeprecatedSince
 import com.apollographql.apollo3.annotations.ApolloExperimental
 import com.apollographql.apollo3.ast.ConversionException
 import com.apollographql.apollo3.ast.GQLArgument
@@ -33,7 +35,6 @@ import com.apollographql.apollo3.ast.Schema
 import com.apollographql.apollo3.ast.SourceLocation
 import com.apollographql.apollo3.ast.parseAsGQLDocument
 import com.apollographql.apollo3.ast.parseAsGQLValue
-import com.apollographql.apollo3.ast.toSchema
 import com.apollographql.apollo3.ast.validateAsSchema
 import com.apollographql.apollo3.ast.withoutBuiltinDefinitions
 import com.apollographql.apollo3.compiler.buffer
@@ -41,7 +42,6 @@ import okio.buffer
 import okio.source
 import java.io.File
 
-@OptIn(ApolloExperimental::class)
 private class GQLDocumentBuilder(private val introspectionSchema: IntrospectionSchema, filePath: String?) {
   private val sourceLocation = SourceLocation(
       filePath = filePath,
@@ -113,7 +113,7 @@ private class GQLDocumentBuilder(private val introspectionSchema: IntrospectionS
         name = name,
         description = description,
         fields = fields?.map { it.toGQLFieldDefinition() } ?: throw ConversionException("interface '$name' did not define any field"),
-        implementsInterfaces = emptyList(), // TODO
+        implementsInterfaces = interfaces?.mapNotNull { it.name } ?: emptyList(),
         directives = emptyList()
     )
   }
@@ -286,6 +286,8 @@ private class GQLDocumentBuilder(private val introspectionSchema: IntrospectionS
  * See https://spec.graphql.org/draft/#sel-GAHXJHABuCB_Dn6F
  */
 @ApolloExperimental
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("GQLDocumentBuilder", "com.apollographql.apollo3.ast.introspection"))
 fun IntrospectionSchema.toGQLDocument(filePath: String? = null): GQLDocument = GQLDocumentBuilder(this, filePath)
     .toGQLDocument()
     /**
@@ -299,12 +301,16 @@ fun IntrospectionSchema.toGQLDocument(filePath: String? = null): GQLDocument = G
  * In the process, the builtin definitions are removed and added again.
  */
 @ApolloExperimental
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("toSchema", "com.apollographql.apollo3.ast.introspection"))
 fun IntrospectionSchema.toSchema(): Schema = toGQLDocument().validateAsSchema().valueAssertNoErrors()
 
 /**
  * Transforms the given file to a [GQLDocument] without doing validation
  */
 @ApolloExperimental
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("toSchemaGQLDocument", "com.apollographql.apollo3.ast.introspection"))
 fun File.toSchemaGQLDocument(): GQLDocument {
   return if (extension == "json") {
     toIntrospectionSchema().toGQLDocument(filePath = path)
@@ -314,4 +320,6 @@ fun File.toSchemaGQLDocument(): GQLDocument {
 }
 
 @ApolloExperimental
+@ApolloDeprecatedSince(ApolloDeprecatedSince.Version.v3_3_1)
+@Deprecated("Use the apollo-ast version instead", ReplaceWith("toSchema", "com.apollographql.apollo3.ast.introspection"))
 fun File.toSchema(): Schema = toSchemaGQLDocument().validateAsSchema().valueAssertNoErrors()
